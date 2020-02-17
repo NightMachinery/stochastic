@@ -20,7 +20,7 @@ for i in range(n):
 	# 	nm[j,i] = nm[j,si[j]]
 	# 	nm[j,si[j]] = i+1
 	nm[:,i] = nm[row_idxs,si]
-	nm[row_idxs, si] = i	
+	nm[row_idxs, si] = i+1	
 
 t.toc()
 print(nm)
