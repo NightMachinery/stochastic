@@ -17,6 +17,8 @@ ix = si[j]
 nm[j,i] = nm[j,ix]
 nm[j,ix] = i
 }
+nm[,i] = nm[,i]
+nm[
 
 }
 

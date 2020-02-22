@@ -24,3 +24,10 @@ for i in range(n):
 
 t.toc()
 print(nm)
+a=np.sum(nm,axis=0)/10**5
+print(a)
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.distplot(a)
+plt.show()
