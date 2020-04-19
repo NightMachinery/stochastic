@@ -12,3 +12,15 @@ rb = mapslices(r, dims=[2]) do x
     s1, s2 = x
     s1 >= s2
 end
+
+# good macros here https://gist.github.com/MikeInnes/8299575
+more(content) = more(repr("text/plain", content))
+# using Markdown
+# more(content::Markdown.MD) = more(Markdown.term(Core.CoreSTDOUT(), content))
+function more(content::AbstractString)
+    run(pipeline(`echo $(content)`, `less`))
+    nothing
+end
+macro d(body)
+    :(more(Core.@doc($(esc(body)))))
+end
