@@ -197,3 +197,7 @@ Adding a function `simulateVents` to `Place.startActions` that checks density of
 #### Effective treatment
 
 We can add a sizable probability in `Person.changeState` to change state to `recovered` if `Place.hasEffectiveTreatment`. We can further set `Person.nonResponsiveTo: enum(Treatments)[]` to model specific patients responding only to a some treatments.
+
+#### Initial viral load exposure
+
+We can estimate the initial viral load exposure by getting the 2-days rolling average of density of sick people in `Person`'s `Place` in the first 7 days since getting infected, and increasing the probability of changing state to more severe disease (and death) based on this initial viral load exposure estimate.
