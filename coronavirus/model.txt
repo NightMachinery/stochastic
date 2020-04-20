@@ -1,0 +1,58 @@
+## A rough draft of the architecture of the model
+
+# Guide to reading this
+I am sketching the class structure of the model, and how they should be connected.
+Some hints:
+  `Function` is any read-only function.
+  `Function!` is any function that possibly mutates the state.
+  `[]` means array.
+  `(,)` means tuple.
+  `(int, string) -> int` describes the type of a function.
+  I use docstring-style for comments, e.g.:
+    "This is a comment!"
+  `ASSERT` means some relation must hold.
+
+Ideas to make model more sophisticated
+  Search for SOPH to find more ideas scattered in the current doc.
+  Make places mobile in addition to people (They already can belong to multiple parent places).
+    This should work similarly to moving people :-?
+  Make current state or an essential summary of it persist in a circular queue, so we can implement time delay. We can also persist every N (24?) rounds to lessen the memory pressure.
+
+
+
+Place: class
+  Subplaces: (Place, DistributiveProbability)[]
+    ASSERT sum(DistributiveProbability) <= 1
+
+  Actions: (Order, Function!)[] sorted by Order (Order is partial)
+    Start of round actions
+      Possibilities:
+        Change probability of accepting travelers as density of infection reaches a threshold.
+        ...
+
+    End of round actions
+
+  Count of: int
+    count of each state of people (e.g., sick, asymptomatic)(Doesn't include subplaces)
+
+  Measure of: int ?
+    size (Doesn't include subplaces, as usual)
+
+  Information Reporting: Function
+    all people: -> int
+      "Sums all states of people"
+    desnity: -> int
+      "all people/size"
+
+  Receives infective pressure from: (Place, PressureWeight)[]
+
+  Accept travel request and distribute it in subplaces (including self): Function
+    "Accepts with probability pEnter and distribute to each subplace according to DistributiveProbability. (The remainder of probability from subplaces goes into the self.)"
+    "SOPH: Discriminate based on properties of entrant people."
+
+
+Person: class
+  "SOPH: Note that also could be an animal. :D We just need to set the correct parameters."
+  Nationality: enum(countries) or string ?
+  change state: Function! 
+    get new state: Function(self) -> new state

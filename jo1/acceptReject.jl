@@ -19,21 +19,16 @@ begin
     end
 # X()
 
-
-
     n = 10^7
     @time a = [X() for i in 1:n]
 
     using FreqTables
-    x = prop(freqtable(a))
+    verify = prop(freqtable(a))
 end
-display(prop(freqtable(a)))
 
 using SplitApplyCombine
-display(map(x->length(x) / n, group(a)))
+sort(collect(pairs(map(x->length(x) / n, group(a)))), by = x->x[1])
 
-ys = [Y() for i in 1:n]
-display(map(x->length(x) / n, group(ys)))
 
 
 using Gadfly, Colors
