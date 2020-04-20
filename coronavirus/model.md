@@ -1,12 +1,12 @@
 
-# A rough draft of a model for simulating disease spread
+# A rough draft of a framework for building models of disease spread
 
 This is Fereidoon Mehri's for Dr. Mirsadeghi's simulation course at SUT, 2020 Spring.
 As this draft is still incomplete, see the [latest version on my Github](https://github.com/batbone/stochastic/blob/master/coronavirus/model.md). That version is also auto-rendered by Github, so you don't need a Markdown renderer.
 
 ## Guide to reading this
 
-I am sketching the structure of the model, and how they should be connected.
+This is an abstract description of a framework that allows us building different models of disease spread (and more). As there is but a fine line between parametrizing a single model and a framework that can support many models, I have been using the word 'model' in lieu of 'framework' in this doc (most of the times at least :D). Its main idea is to use object oriented design in a highly dynamic language such as Python to structure a base model that can easily, and modularly, be exntended to simulate different conditions.
 
 Some hints:
 * `Function` is any read-only function.
@@ -65,7 +65,7 @@ end
 ```
 
 
-### Ideas to make model more sophisticated
+### Ideas to make the model more sophisticated
 
 * Search for SOPH to find more ideas scattered in the current doc.
 * Make `Place`s mobile in addition to people.
@@ -73,9 +73,13 @@ end
     This should work similarly to moving people :-?
 
 * Make `Place`s able to be children to multiple parents at once.
-* Make current state or an essential summary of it persist in a circular queue, so we can implement time delay. We can also persist every N (24?) rounds to lessen the memory pressure.
+* Make current state or an essential summary of it persist in a queue, so we can implement time-delayed effects. (E.g., probability of getting sick now can depend on the global state of 4 days before.)
+
+    We can also persist every N (24?) rounds to lessen the memory pressure.
 
 ## Model's rough class structure (still woefully incomplete)
+
+Don't get bugged down in the details here. Skip this section if necessary.
 
 ```
 Place: class
@@ -84,12 +88,14 @@ Place: class
         ASSERT sum(DistributiveProbability) <= 1
 
     Actions: (PartialOrder: int, Function!)[] "Functions with lower order numbers will run first."
-        Start of round actions
-            Possibilities:
+        startActions
+            "Start of round actions"
+            "Possibilities:
                 Change probability of accepting travelers as density of infection reaches a threshold.
-                ...
+                ..."
 
-        End of round actions
+        endActions
+        "End of round actions"
 
     Count of: int
         count of each state of people (e.g., sick, asymptomatic)(Doesn't include subplaces)
@@ -170,7 +176,7 @@ As `Person`'s `possibly move` calls the parent `Place`'s `moveChild`, the state 
 
 `Person`'s `changeState` function can insert a property `Person.lastRecoveryDate` when changing that `Person.currentState` to `recovered`. The same function can then check that property and after some time has passed, do the appropriate thing. For example, treat the `Person` as if they were `neverInfected`.
 
-#### People gathering in central locations (e.g., markets)
+#### People gathering in central locations (e.g., markets, public transport)
 
 We can add a new function, named `moveToMarket` to `possiblyMove` of `Person` that queries `Person.parentPlace.getMarkets()`, and moves to one of the returned `Place`s randomly with some probability, and stores the previous location (if not a transient location) into `Person.residentPlace`.
 
@@ -183,3 +189,11 @@ We can inherit from `Person` and disable (i.e., remove) all functions (except th
 #### Having sick neighboring regions
 
 We can add neighboring regions to `Place.receivesInfectivePressure` (with weights that model, e.g., contact), and then check those neighbors density of sick people (calibrated by their weight) in `Person.changeState`, and adjust the probabilities of getting sick accordingly.
+
+#### Running out of ventilators
+
+Adding a function `simulateVents` to `Place.startActions` that checks density of sick people against `Place.healthSystemScore` and increases `Place.baselineInfectionProbability`. We then have to incorporate the information of `Place.baselineInfectionProbability` in `Person.changeState`.
+
+#### Effective treatment
+
+We can add a sizable probability in `Person.changeState` to change state to `recovered` if `Place.hasEffectiveTreatment`. We can further set `Person.nonResponsiveTo: enum(Treatments)[]` to model specific patients responding only to a some treatments.
