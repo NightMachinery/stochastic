@@ -162,24 +162,24 @@ const travelProbability = 0.0001 # Note that this is going to be called every ro
     end
 ```
 
-### State forces non-nationals out
+#### State forces non-nationals out
 
 As `Person`'s `possibly move` calls the parent `Place`'s `moveChild`, the state simply needs to check each `Person`'s `Nationality` and return a `Place` for non-nationals (anywhere in the world, possibly that `Person`'s `hometown`), and `null` for nationals.
 
-### Short immunity
+#### Short immunity
 
 `Person`'s `changeState` function can insert a property `Person.lastRecoveryDate` when changing that `Person.currentState` to `recovered`. The same function can then check that property and after some time has passed, do the appropriate thing. For example, treat the `Person` as if they were `neverInfected`.
 
-### People gathering in central locations (e.g., markets)
+#### People gathering in central locations (e.g., markets)
 
 We can add a new function, named `moveToMarket` to `possiblyMove` of `Person` that queries `Person.parentPlace.getMarkets()`, and moves to one of the returned `Place`s randomly with some probability, and stores the previous location (if not a transient location) into `Person.residentPlace`.
 
 These market `Place`s could then force people out via `Place.moveChild` or we can check in `moveToMarket` whether we are in a market or not; And return to `Person.residentPlace` with high probability.
 
-### Self-quarintine
+#### Self-quarintine
 
 We can inherit from `Person` and disable (i.e., remove) all functions (except the mandatory one that checks `moveChild` of parent `Place`) from `Person.possiblyMove`. 
 
-### Having sick neighboring regions
+#### Having sick neighboring regions
 
 We can add neighboring regions to `Place.receivesInfectivePressure` (with weights that model, e.g., contact), and then check those neighbors density of sick people (calibrated by their weight) in `Person.changeState`, and adjust the probabilities of getting sick accordingly.
