@@ -6,7 +6,7 @@ As this draft is still incomplete, see the [latest version on my Github](https:/
 
 ## Guide to reading this
 
-This is an abstract description of a framework that allows us building different models of disease spread (and more). As there is but a fine line between parametrizing a single model and a framework that can support many models, I have been using the word 'model' in lieu of 'framework' in this doc (most of the times at least :D). Its main idea is to use object oriented design in a highly dynamic language such as Python to structure a base model that can easily, and modularly, be exntended to simulate different conditions.
+This is an abstract description of a framework that allows us to build different models of disease spread (and more). As there is but a fine line between parametrizing a single model and a framework that can support many models, I have been using the word 'model' in lieu of 'framework' in this doc (most of the times at least :D). Its main idea is to use object oriented design in a highly dynamic language such as Python to structure a base model that can easily, and modularly, be exntended to simulate different conditions.
 
 Some hints:
 * `Function` is any read-only function.
