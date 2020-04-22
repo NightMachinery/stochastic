@@ -43,7 +43,13 @@ E = P
 using Distributions
 # V = (λ) -> Poisson(λ)
 V = nothing
+n = 10^4
+#############
+g1 = [E(2) for i = 1:n] # generate the samples
+using Gadfly
+p = plot(x = sort(g1), y = (1:n) ./ n, Geom.hair)
 
+##############
 include("../common/plotSamples.jl")
 
 testEs(bandwidth = 1)
