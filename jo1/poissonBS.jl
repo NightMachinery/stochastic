@@ -3,7 +3,7 @@ include("./binarysearch.jl")
 using Distributions
 
 const L = 500
-const poiL = poisson(L, L*3)[2]
+const poiL = poisson(L, L * 3)[2]
 function u2poiL(u)
     return bsbetween(poiL, u)[2] - 1
 end
@@ -27,7 +27,7 @@ function u2poiLS2(u)
         return L
     elseif u >= poiL[L]
         i = L + 1
-        for p in poiL[L+1:end]
+        for p in poiL[L + 1:end]
             if u <= p
                 return i - 1
             end
@@ -35,9 +35,9 @@ function u2poiLS2(u)
         end
     else
         i = L - 1
-        for p in reverse(poiL[1:L-1])
+        for p in reverse(poiL[1:L - 1])
             if u > p
-                return i #+1
+                return i # +1
             end
             i -= 1
         end
@@ -49,15 +49,15 @@ function u2poiLS3(u)
     if u == poiL[L]
         return L - 1
     elseif u >= poiL[L]
-        for i = L+1:length(poiL)
+        for i = L + 1:length(poiL)
             if u <= poiL[i]
                 return i - 1
             end
         end
     else
-        for i = L-1:-1:1
+        for i = L - 1:-1:1
             if u > poiL[i]
-                return i #+1
+                return i # +1
             end
         end
         return 0
@@ -74,8 +74,12 @@ end
 # @assert u2poiL(0.5) == 50 # Only for L=50
 
 n = 10^4
-if false
-    # Times in comment are for n=10^4
+mode = 1
+if mode == 1
+    bS3 = @benchmark g1 = [u2poiLS3(rand()) for i = 1:n]
+    display(bS3)
+elseif mode == 2
+    # Times in comment are for n=10^4 (L=50?)
 
     # Binary search (functional style)
     bBS = @benchmark g1 = [u2poiL(rand()) for i = 1:n]
@@ -100,10 +104,10 @@ if false
     # 435.529 μs
 
     # BS < S2 << S < S3
-end
+else
 
-n = 10^7
-@time g1 = [u2poiLS3(rand()) for i = 1:n]
+    n = 10^7
+    @time g1 = [u2poiLS3(rand()) for i = 1:n]
 # function gen1()
 #     out = Vector{Int}(undef, n)
 #     for i in 1:n
@@ -114,10 +118,10 @@ n = 10^7
 #     return out
 # end
 # @benchmark gen1()
-v1 = [rand(Poisson(L)) for i = 1:n]
+    v1 = [rand(Poisson(L)) for i = 1:n]
 
-using Statistics, DataFrames, Gadfly, Distributions, Colors, ColorSchemes
-p = plot(
+    using Statistics, DataFrames, Gadfly, Distributions, Colors, ColorSchemes
+    p = plot(
     layer(
         x = g1,
         Geom.density(bandwidth = 1),
@@ -137,4 +141,6 @@ p = plot(
     # style(alphas = [0.3], line_width =2mm),
 );
 # alpha is useless on lines?
-display(p)
+    display(p)
+
+end

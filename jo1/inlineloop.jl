@@ -21,6 +21,10 @@ let
     function r()
         f()
     end
+    function r3()
+        const global f2 = genF(0, 5555555)
+        return f2()
+    end
 
 
     println(@code_lowered r())
@@ -38,4 +42,12 @@ let
     println(@code_typed r2())
     println("----------")
     println(@code_llvm r2())
+
+    println("^^^^^^^^^^^^^^^^^^^^^^^^")
+
+    println(@code_lowered r3())
+    println("----------")
+    println(@code_typed r3())
+    println("----------")
+    println(@code_llvm r3())
 end
