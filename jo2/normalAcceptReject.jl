@@ -16,7 +16,7 @@ function stdN()
 end
 
 ###
-@benchmark stdN()  samples = 10^6 seconds = Inf
+@benchmark stdN() samples = 10^6 seconds = Inf
 # BenchmarkTools.Trial: 
 #   memory estimate:  0 bytes
 #   allocs estimate:  0
