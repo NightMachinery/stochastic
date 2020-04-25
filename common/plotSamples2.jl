@@ -1,4 +1,5 @@
-using Colors, Gadfly, ColorSchemes, Distributions, Compose
+using Colors, Gadfly, ColorSchemes, Distributions, Compose, UUIDs
+import Cairo, Fontconfig
 
 function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true)
     return layer(
@@ -19,10 +20,10 @@ function layercdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = 
         style(line_width = line_width, default_color = color),
         )
 end
-function plotSamples(ss ; p_d = [], p_c = [], alpha_d = 0.7, alpha_c = 0.7 , kwargs...)
+function plotSamples(ss ; p_d = [], p_c = [], alpha_d = 0.7, alpha_c = 0.7 , colorscheme = ColorSchemes.gnuplot2, kwargs...)
     n = length(ss) + 1 # no white color
-    Ds = [layerpdf(s ; color = RGBA(get(ColorSchemes.gnuplot2, i / n), alpha_d), kwargs...) for (i, s) in enumerate(ss)]
-    Cs = [layercdf(s ; color = RGBA(get(ColorSchemes.gnuplot2, i / n), alpha_c), kwargs...) for (i, s) in enumerate(ss)]
+    Ds = [layerpdf(s ; color = RGBA(get(colorscheme, i / n), alpha_d), kwargs...) for (i, s) in enumerate(ss)]
+    Cs = [layercdf(s ; color = RGBA(get(colorscheme, i / n), alpha_c), kwargs...) for (i, s) in enumerate(ss)]
     p_d = plot(Ds..., p_d...)
     p_c = plot(Cs..., p_c...)
     return p_d, p_c
