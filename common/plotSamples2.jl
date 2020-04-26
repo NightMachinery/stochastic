@@ -4,7 +4,9 @@ import Cairo, Fontconfig
 function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true, style_more...)
     return layer(
         x = s,
-        Geom.histogram(density = density),
+        # Geom.histogram(density = density),
+        Geom.line(),
+        Stat.histogram(density = density),
         style( ; line_width = line_width, default_color = color, style_more...),
     )
 end
@@ -56,4 +58,4 @@ function drawSamples(E, V, λs = [1] ; n = 10^4, title1 = "Ours", title2 = "Thei
     return (vstack(ours, hstack(E_d, E_c), theirs, hstack(V_d, V_c)))
 end
 
-set_default_plot_size(26cm, 20cm)
+set_default_plot_size(20cm, 18cm)
