@@ -1,14 +1,14 @@
 using Colors, Gadfly, ColorSchemes, Distributions, Compose, UUIDs
 import Cairo, Fontconfig
 
-function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true)
+function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true, style_more...)
     return layer(
         x = s,
         Geom.histogram(density = density),
-        style(line_width = line_width, default_color = color),
+        style( ; line_width = line_width, default_color = color, style_more...),
     )
 end
-function layercdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true)
+function layercdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true, style_more...)
     n = length(s)
     ys = (1:n)
     if density
@@ -17,13 +17,20 @@ function layercdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = 
     return layer(x = sort(s),
         y = ys,
         Geom.line,
-        style(line_width = line_width, default_color = color),
+        style( ; line_width = line_width, default_color = color, style_more...),
         )
 end
 function plotSamples(ss ; p_d = [], p_c = [], alpha_d = 0.7, alpha_c = 0.7 , colorscheme = ColorSchemes.gnuplot2, kwargs...)
     n = length(ss) + 1 # no white color
-    Ds = [layerpdf(s ; color = RGBA(get(colorscheme, i / n), alpha_d), kwargs...) for (i, s) in enumerate(ss)]
-    Cs = [layercdf(s ; color = RGBA(get(colorscheme, i / n), alpha_c), kwargs...) for (i, s) in enumerate(ss)]
+    if (colorscheme isa Function)
+        getcolor = colorscheme
+    else
+        getcolor = function (i, n, alpha)
+            RGBA(get(colorscheme, i / n), alpha)
+        end
+    end
+    Ds = [layerpdf(s ; color = getcolor(i, n, alpha_d), kwargs...) for (i, s) in enumerate(ss)]
+    Cs = [layercdf(s ; color = getcolor(i, n, alpha_c), kwargs...) for (i, s) in enumerate(ss)]
     p_d = plot(Ds..., p_d...)
     p_c = plot(Cs..., p_c...)
     return p_d, p_c
