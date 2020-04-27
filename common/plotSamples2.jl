@@ -57,5 +57,31 @@ function drawSamples(E, V, λs = [1] ; n = 10^4, title1 = "Ours", title2 = "Thei
     theirs = compose(context(0, 0, 1w, 0.4h), font("Jokerman"), fontsize(14pt), text(0.5, 1.0, title2, hcenter, vbottom))
     return (vstack(ours, hstack(E_d, E_c), theirs, hstack(V_d, V_c)))
 end
+###
+macro plot(cmd, format = "svg", prefix = "")
+    pltcmd = :(plt = $cmd)
+    cmdstr = string(cmd)
+    format = lowercase(string(format))
+    prefix = string(prefix)
+    return quote
+        svg = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).$($format)" # can't quote expressions inside ``.
+        $(esc(pltcmd))
+        if $format == "svg"
+            plt |> SVG(svg)
+            run(`/Applications/Firefox.app/Contents/MacOS/firefox $(svg)`)
+        elseif $format == "png"
+            plt |> PNG(svg, dpi = 300)
+            run(`open -a Preview $(svg)`)
+        elseif $format == "html"
+            plt |> SVGJS(svg)
+            run(`/Applications/Firefox.app/Contents/MacOS/firefox $(svg)`)
+        else
+            throw("Unsupported format in @plot")
+        end
+        println("Saved plot to $svg")
+    end
+end
+###
 
-set_default_plot_size(20cm, 18cm)
+# set_default_plot_size(20cm, 18cm)
+set_default_plot_size(26cm, 18cm)

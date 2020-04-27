@@ -4,7 +4,7 @@ using DataFrames
 ###
 @doc """
 λs should be a singleton [λ] for now.
-"""->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, kwargs...)
+"""->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, alpha = 0.1, kwargs...)
     data = [
     let xy = G(λ)
         DataFrame(λ = λ,
@@ -31,7 +31,7 @@ using DataFrames
         # Scale.color_continuous(colormap = x->colorant"red"),
         Scale.color_sqrt(colormap = x->get(colorscheme, x)),
         style(default_color = RGB(0, 0, 1),
-            alphas = [0.1],
+            alphas = [alpha],
             highlight_width = 0cm,
             line_width = 0.7mm,
             grid_color = RGBA(0, 1, 0, 0),
@@ -39,7 +39,13 @@ using DataFrames
         # Geom.density2d(levels = levels),
         color = :n,
         Geom.point(),
-        Coord.cartesian(fixed = true))
+        Coord.cartesian(fixed = true,
+        # xmin = 9.5, xmax = 10.5,
+        # ymin = 19.5, ymax = 20.5,
+        # xmin = 0, xmax = 20,
+        # ymin = 10, ymax = 30,
+        ),
+        )
     println("Done!")
     return plt
 end
@@ -65,7 +71,9 @@ function pcircle(λ)
     end
     nhP2D(10^2, circlerate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)  
 end
-drawP2D(G = pcircle, n = 15 * (10^2), colorscheme = ColorSchemes.autumn1)  # |> SVG("./plots/circle.svg", 20cm, 20cm)
+# plt = drawP2D(G = pcircle, n = 8 * (10^2), colorscheme = ColorSchemes.prism, alpha = 0.6)
+# plt |> SVG("./tmp/circle.svg", 20cm, 20cm)
+@plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) png "hmm "
 ###
 function drawP(λs = [1,2])
     plt = drawSamples((λ)->P(λ), (λ)->rand(Distributions.Poisson(λ)), λs, title1 = "Poisson (simulated via memoized tables)", title2 = "Distributions.jl's")
