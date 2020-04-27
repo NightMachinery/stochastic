@@ -58,27 +58,37 @@ function drawSamples(E, V, λs = [1] ; n = 10^4, title1 = "Ours", title2 = "Thei
     return (vstack(ours, hstack(E_d, E_c), theirs, hstack(V_d, V_c)))
 end
 ###
-macro plot(cmd, format = "svg", prefix = "")
+macro plot(cmd, format = "pngplus", prefix = "")
     pltcmd = :(plt = $cmd)
     cmdstr = string(cmd)
     format = lowercase(string(format))
+    pngplus = false
+    if format == "pngplus"
+        format = "png"
+        pngplus = true
+    end
     prefix = string(prefix)
+    # /Applications/Firefox.app/Contents/MacOS/firefox
     return quote
-        svg = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).$($format)" # can't quote expressions inside ``.
+        file = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).$($format)" # can't quote expressions inside ``.
         $(esc(pltcmd))
         if $format == "svg"
-            plt |> SVG(svg)
-            run(`/Applications/Firefox.app/Contents/MacOS/firefox $(svg)`)
+            plt |> SVG(file)
+            run(`open -a Safari $(file)`)
         elseif $format == "png"
-            plt |> PNG(svg, dpi = 300)
-            run(`open -a Preview $(svg)`)
+            plt |> PNG(file, dpi = 300)
+            run(`open -a Preview $(file)`)
+            if $pngplus
+                file2 = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).auto.svg"
+                plt |> SVG(file2)
+            end
         elseif $format == "html"
-            plt |> SVGJS(svg)
-            run(`/Applications/Firefox.app/Contents/MacOS/firefox $(svg)`)
+            plt |> SVGJS(file)
+            run(`open -a Safari $(file)`)
         else
             throw("Unsupported format in @plot")
         end
-        println("Saved plot to $svg")
+        println("Saved plot to $file")
     end
 end
 ###

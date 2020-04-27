@@ -73,7 +73,29 @@ function pcircle(λ)
 end
 # plt = drawP2D(G = pcircle, n = 8 * (10^2), colorscheme = ColorSchemes.prism, alpha = 0.6)
 # plt |> SVG("./tmp/circle.svg", 20cm, 20cm)
-@plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) png "hmm "
+@plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) html ""
+###
+using Images, TestImages, Colors
+img = Gray{Float64}.(load("./resources/poissonjokerman.png"))
+function imgrate(λ = 5)
+    xmin = 0
+    width = 5
+    xmax = xmin + width
+    ymin = 0
+    height = 2.5
+    ymax = ymin + height
+    imgsize = size(img)
+    imgw = imgsize[2]
+    imgh = imgsize[1]
+
+    function rate(x, y)
+        rx = ceil(Int, ((x - xmin) / width) * imgw)
+        ry = ceil(Int, ((y - ymin) / height) * imgh)
+        (1 - img[(imgh - ry + 1),rx]) * 100 
+    end
+    nhP2D(10^2, rate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)   
+end
+@plot drawP2D(G = imgrate, n = 40, colorscheme = ColorSchemes.gnuplot2, alpha = 0.3) html ""
 ###
 function drawP(λs = [1,2])
     plt = drawSamples((λ)->P(λ), (λ)->rand(Distributions.Poisson(λ)), λs, title1 = "Poisson (simulated via memoized tables)", title2 = "Distributions.jl's")
