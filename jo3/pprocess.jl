@@ -93,7 +93,7 @@ end
     thinned = Array{Float64,2}(undef, n, 2)
     thinnedN = 0
     for i in 1:n
-        if rand() <= λ(all[i,1], all[i,2])
+        if rand() <= (λ(all[i,1], all[i,2]) / λ0)
             thinnedN += 1
             thinned[thinnedN, 1] = all[i,1]
             thinned[thinnedN, 2] = all[i,2]

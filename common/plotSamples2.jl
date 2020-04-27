@@ -60,6 +60,7 @@ end
 ###
 macro plot(cmd, format = "pngplus", prefix = "")
     pltcmd = :(plt = $cmd)
+    # cmdstr = replace(string(cmd), '\n' => " PANDA ")
     cmdstr = string(cmd)
     format = lowercase(string(format))
     pngplus = false
@@ -70,8 +71,22 @@ macro plot(cmd, format = "pngplus", prefix = "")
     prefix = string(prefix)
     # /Applications/Firefox.app/Contents/MacOS/firefox
     return quote
-        file = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).$($format)" # can't quote expressions inside ``.
+        outdir = "$(pwd())/tmp/plots"
+        mkpath(outdir)
+
+        if occursin('\n', $cmdstr)
+            name = uuid4()
+            open("$outdir/$name.jl", "w") do io
+                print(io, $cmdstr)
+            end
+        else
+            name = $cmdstr
+        end
+
+        file = "$(outdir)/$($prefix)$(name).$($format)" # can't quote expressions inside ``.
+
         $(esc(pltcmd))
+
         if $format == "svg"
             plt |> SVG(file)
             run(`open -a Safari $(file)`)
@@ -79,7 +94,7 @@ macro plot(cmd, format = "pngplus", prefix = "")
             plt |> PNG(file, dpi = 300)
             run(`open -a Preview $(file)`)
             if $pngplus
-                file2 = "$(pwd())/tmp/plots/$($prefix)$($cmdstr).auto.svg"
+                file2 = "$(outdir)/$($prefix)$($cmdstr).auto.svg"
                 plt |> SVG(file2)
             end
         elseif $format == "html"

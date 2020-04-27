@@ -4,7 +4,7 @@ using DataFrames
 ###
 @doc """
 λs should be a singleton [λ] for now.
-"""->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, alpha = 0.1, kwargs...)
+"""->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, alphas = [0.5], kwargs...)
     data = [
     let xy = G(λ)
         DataFrame(λ = λ,
@@ -27,14 +27,19 @@ using DataFrames
         return minz:stepz:maxz
     end
     # levels = [0:0.02:0.2; 0.3:0.2:2;]
+    colormap = x->get(colorscheme, x)
+    if colorscheme isa Function
+        colormap = colorscheme
+    end
     plt = plot(data, x = :xs, y = :ys,
         # Scale.color_continuous(colormap = x->colorant"red"),
-        Scale.color_sqrt(colormap = x->get(colorscheme, x)),
-        style(default_color = RGB(0, 0, 1),
-            alphas = [alpha],
+        Scale.color_sqrt(colormap = colormap),
+        style(; default_color = RGB(0, 0, 1),
+            alphas = alphas,
             highlight_width = 0cm,
             line_width = 0.7mm,
             grid_color = RGBA(0, 1, 0, 0),
+            kwargs...
         ),
         # Geom.density2d(levels = levels),
         color = :n,
@@ -76,26 +81,51 @@ end
 @plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) html ""
 ###
 using Images, TestImages, Colors
-img = Gray{Float64}.(load("./resources/poissonjokerman.png"))
-function imgrate(λ = 5)
-    xmin = 0
-    width = 5
-    xmax = xmin + width
-    ymin = 0
-    height = 2.5
-    ymax = ymin + height
+poissonimg = Gray{Float64}.(load("./resources/poissonjokerman.png"))
+darkpinkgirl1 = Gray{Float64}.(load("./resources/darkpinkgirl1.jpg"))
+set0 = Gray{Float64}.(load("./resources/set0c.jpg"))
+mirsadeghi = Gray{Float64}.(load("./resources/mirsadeghi.png"))
+img = mirsadeghi
+function imgrate(; precision = 10^1, width = 20, pslope = 1, transform = identity)
     imgsize = size(img)
     imgw = imgsize[2]
     imgh = imgsize[1]
 
+    xmin = 0
+    xmax = xmin + width
+    ymin = 0
+    height = (imgh / imgw) * width
+    ymax = ymin + height
+
     function rate(x, y)
         rx = ceil(Int, ((x - xmin) / width) * imgw)
         ry = ceil(Int, ((y - ymin) / height) * imgh)
-        (1 - img[(imgh - ry + 1),rx]) * 100 
+        transform((1 - img[(imgh - ry + 1),rx])^pslope) * precision 
     end
-    nhP2D(10^2, rate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)   
+    nhP2D(precision, rate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)   
 end
-@plot drawP2D(G = imgrate, n = 40, colorscheme = ColorSchemes.gnuplot2, alpha = 0.3) html ""
+@plot drawP2D(G = (λ)->imgrate(precision = 10^0, width = 20, pslope = 6, transform = (x)->(x)),
+point_size = 0.7mm,
+n = 10 * 10^2,
+    # colorscheme = ColorSchemes.jet,
+    colorscheme = function (x)
+    cs = ColorSchemes.jet
+    # returning white effectively clears the more dense regions:))
+    cutoff =  0.4
+    if x >= cutoff
+        return RGB(1, 1, 1)
+    end
+    return get(cs, (x / cutoff))
+    # return get(cs, 1 - (x / cutoff))
+    # return get(cs, 1 - x)
+    # return get(cs, x)
+    # return get(cs, log1p(x)) 
+    # return get(cs, log1p(x) * 3 + 0.25) 
+    # return get(cs, x^4 * 1000 + 0.3) 
+    # return get(cs, x^2 * 3) 
+    # return get(cs, rand())
+end,
+    alphas = [0.6]) png ""
 ###
 function drawP(λs = [1,2])
     plt = drawSamples((λ)->P(λ), (λ)->rand(Distributions.Poisson(λ)), λs, title1 = "Poisson (simulated via memoized tables)", title2 = "Distributions.jl's")
