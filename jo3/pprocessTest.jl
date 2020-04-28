@@ -85,7 +85,8 @@ poissonimg = Gray{Float64}.(load("./resources/poissonjokerman.png"))
 darkpinkgirl1 = Gray{Float64}.(load("./resources/darkpinkgirl1.jpg"))
 set0 = Gray{Float64}.(load("./resources/set0c.jpg"))
 mirsadeghi = Gray{Float64}.(load("./resources/mirsadeghi.png"))
-img = mirsadeghi
+maze = Gray{Float64}.(load("./resources/maze.png"))
+img = maze
 function imgrate(; precision = 10^1, width = 20, pslope = 1, transform = identity)
     imgsize = size(img)
     imgw = imgsize[2]
@@ -109,7 +110,7 @@ point_size = 0.7mm,
 n = 10 * 10^2,
     # colorscheme = ColorSchemes.jet,
     colorscheme = function (x)
-    cs = ColorSchemes.jet
+    cs = ColorSchemes.gnuplot2
     # returning white effectively clears the more dense regions:))
     cutoff =  0.4
     if x >= cutoff
