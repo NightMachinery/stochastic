@@ -104,3 +104,4 @@ end
     # filteredrows = filter(event->(rand() <= λ(event...) / λ0), collect(eachrow(all)))
     # return hcat(filteredrows)'
 end    
+# TODO Polar 2D circle poisson

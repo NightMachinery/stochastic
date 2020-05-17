@@ -9,6 +9,7 @@ As this draft is still incomplete, see the [latest version on my Github](https:/
 This is an abstract description of a framework that allows us to build different models of disease spread (and more). As there is but a fine line between parametrizing a single model and a framework that can support many models, I have been using the word 'model' in lieu of 'framework' in this doc (most of the times at least :D). Its main idea is to use object oriented design in a highly dynamic language such as Python to structure a base model that can easily, and modularly, be exntended to simulate different conditions.
 
 Some hints:
+
 * `Function` is any read-only function.
 * `Function!` is any function that possibly mutates the state.
 * `[]` means array.
@@ -157,6 +158,7 @@ Lowering the probability of `Place` to allow entry.
 #### Travel-loving people
 
 Create a new class `TravelLovingPerson` that inherits from `Person` and adds this function to its `super`'s `possibly move`:
+
 ```
 const travelProbability = 0.0001 # Note that this is going to be called every round, so even a low chance means a lot of moving.
 
