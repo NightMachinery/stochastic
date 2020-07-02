@@ -8,7 +8,7 @@ function P(λ)
     return n
 end
 
-#############
+#########
 n = 10^4
 bPE = @benchmark g1 = [P(500) for i = 1:n]
 display(bPE)
@@ -38,18 +38,18 @@ display(bPE)
 #   samples:          1281
 #   evals/sample:     1
 
-#############
+#########
 E = P
 using Distributions
 # V = (λ) -> Poisson(λ)
 V = nothing
 n = 10^4
-#############
+#########
 g1 = [E(2) for i = 1:n] # generate the samples
 using Gadfly
 p = plot(x = sort(g1), y = (1:n) ./ n, Geom.hair)
 
-##############
+##########
 include("../common/plotSamples.jl")
 
 testEs(bandwidth = 1)

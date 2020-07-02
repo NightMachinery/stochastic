@@ -53,8 +53,8 @@ function singleserver(; μ=1 / 20,
     end 
     return entered, departed
 end
-###
+##
 println("Running single server:")
 singleserver()
-###
+##
 # TODO servers in series and parallel

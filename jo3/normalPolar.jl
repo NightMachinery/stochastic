@@ -25,7 +25,7 @@ function NPolar2()
     end
 end
 
-###
+##
 @benchmark NPolar() samples = 10^8
 # BenchmarkTools.Trial: 
 #   memory estimate:  0 bytes
@@ -53,7 +53,7 @@ end
 #   evals/sample:     982
 
 # So ~32 ns vs 90 ns for accept-reject
-###
+##
 
 include("../common/plotSamples2.jl")
 
@@ -68,6 +68,6 @@ function drawNPolars(mean = 0, std = 1)
     display(plt)
     # plt  |> SVGJS("./plots/Normal(mean=$mean, std=$std).svg", 26cm, 20cm)
 end
-###
+##
 drawNPolars(300, 4)
 drawNPolars(-550, 14)

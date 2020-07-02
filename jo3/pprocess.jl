@@ -43,7 +43,7 @@ function P(λ)
     pc = PC(λ, ceil(Int, λ * 3) + 30)
     return u2p(rand(), pc, λ)
 end
-###
+##
 function PP(λ = 1, from = 10, to = 30)
     len = to - from
     rate = λ * len
@@ -68,12 +68,12 @@ function PPExp(λ = 1, from = 10, to = 30)
     end
     return process
 end
-###
+##
 function nhPP(λ0, λ::Function, from = 10, to = 30)
     filter(event->(rand() <= λ(event) / λ0), PPExp(λ0, from, to))
     # PP doesn't work for rate ~= 750 because of floating point errors.
 end
-###
+##
 function P2D(λ = 1 ; xmin = 1, xmax = 6, ymin = 10, ymax = 20)
     width = xmax - xmin
     height = ymax - ymin

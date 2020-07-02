@@ -15,7 +15,7 @@ function stdN()
     end
 end
 
-###
+##
 @benchmark stdN() samples = 10^6 seconds = Inf
 # BenchmarkTools.Trial: 
 #   memory estimate:  0 bytes
@@ -29,7 +29,7 @@ end
 #   samples:          1000000
 #   evals/sample:     978
 
-##############
+##########
 
 include("../common/plotSamples2.jl")
 
@@ -38,9 +38,9 @@ function drawNormal(mean = 0, std = 1)
     display(plt)
     # plt  |> SVGJS("./plots/Normal(mean=$mean, std=$std).svg", 26cm, 20cm)
 end
-##############
+##########
 drawNormal()
 drawNormal(34,4)
 drawNormal(-200,26)
-###########
+########
 pwd()

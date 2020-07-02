@@ -2,7 +2,7 @@ function E(λ)
     -(log(rand()) / λ)
 end
 
-#############
+#########
 
 using Gadfly, Colors, ColorSchemes, Distributions, StatsBase
 

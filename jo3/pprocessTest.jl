@@ -1,7 +1,7 @@
 include("./pprocess.jl")
 include("../common/plotSamples2.jl")
 using DataFrames
-###
+##
 @doc """
 λs should be a singleton [λ] for now.
 """->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, alphas = [0.5], kwargs...)
@@ -54,7 +54,7 @@ using DataFrames
     println("Done!")
     return plt
 end
-###
+##
 # drawP2D()
 function pcircle(λ)
     center = (10, 20)
@@ -79,7 +79,7 @@ end
 # plt = drawP2D(G = pcircle, n = 8 * (10^2), colorscheme = ColorSchemes.prism, alpha = 0.6)
 # plt |> SVG("./tmp/circle.svg", 20cm, 20cm)
 @plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) html ""
-###
+##
 using Images, TestImages, Colors
 poissonimg = Gray{Float64}.(load("./resources/poissonjokerman.png"))
 darkpinkgirl1 = Gray{Float64}.(load("./resources/darkpinkgirl1.jpg"))
@@ -127,7 +127,7 @@ n = 10 * 10^2,
     # return get(cs, rand())
 end,
     alphas = [0.6]) png ""
-###
+##
 function drawP(λs = [1,2])
     plt = drawSamples((λ)->P(λ), (λ)->rand(Distributions.Poisson(λ)), λs, title1 = "Poisson (simulated via memoized tables)", title2 = "Distributions.jl's")
     display(plt)
@@ -145,9 +145,9 @@ function drawPP(λs = [1] ; n = 10, from = -10, to = 10, G = PP, V = PPExp, alph
     # plt  |> PNG("./plots/play/$(uuid4().value).png", 26cm, 20cm, dpi = 150)
     println("Done!")
 end
-###
+##
 drawP([1:3:100;])
-###
+##
 drawPP([0.5,10], n = 20)
 drawPP([5,5], n = 20)
 drawPP([0.1,0.5], n = 70, from = 0, to = 100, alpha_d = 0.8, alpha_c = 0.7, colorscheme = ColorSchemes.devon)
@@ -160,7 +160,7 @@ V = function (λ, from, to)
     res = PP(λ, from, to) 
     return map(x->x + rand(Normal(0, 300)), res)
 end)
-###
+##
 function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true, style_more...)
     return layer(
         x = s,
@@ -189,7 +189,7 @@ V = function (λ, from, to)
     0
     # nhPP(10^4, (x)->abs(tan(x)) * 10, from, to)
 end)
-###
+##
 n = 10^4
 @benchmark P(20) samples = n seconds = Inf
 # BenchmarkTools.Trial: 

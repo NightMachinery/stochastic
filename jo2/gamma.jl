@@ -15,14 +15,14 @@ end
 
 N = 152
 λ = 7
-#############
+#########
 
 ec("Log Heavy:")
 display(@benchmark GLHeavy(N, λ))
 ec("* Heavy:")
 display(@benchmark GMHeavy(N, λ))
 
-#########
+######
 using Colors, Gadfly, ColorSchemes, Distributions, Compose
 
 function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm)

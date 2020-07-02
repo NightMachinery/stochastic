@@ -57,7 +57,7 @@ function drawSamples(E, V, λs = [1] ; n = 10^4, title1 = "Ours", title2 = "Thei
     theirs = compose(context(0, 0, 1w, 0.4h), font("Jokerman"), fontsize(14pt), text(0.5, 1.0, title2, hcenter, vbottom))
     return (vstack(ours, hstack(E_d, E_c), theirs, hstack(V_d, V_c)))
 end
-###
+##
 macro plot(cmd, format = "pngplus", prefix = "")
     pltcmd = :(plt = $cmd)
     # cmdstr = replace(string(cmd), '\n' => " PANDA ")
@@ -106,7 +106,7 @@ macro plot(cmd, format = "pngplus", prefix = "")
         println("Saved plot to $file")
     end
 end
-###
+##
 
 # set_default_plot_size(20cm, 18cm)
 set_default_plot_size(26cm, 18cm)
