@@ -1,9 +1,9 @@
 using Distributions
 
-function singleserver(; μ = 1 / 20,
-    σ = 1 / 80,
-    λ = 12,
-    tend = 8,)
+function singleserver(; μ=1 / 20,
+    σ=1 / 80,
+    λ=12,
+    tend=8,)
     rngnext = Exponential(1 / λ)
     rngservice = Normal(μ, σ)
     nextservice() = max(0, rand(rngservice))
@@ -54,6 +54,7 @@ function singleserver(; μ = 1 / 20,
     return entered, departed
 end
 ###
+println("Running single server:")
 singleserver()
 ###
 # TODO servers in series and parallel
