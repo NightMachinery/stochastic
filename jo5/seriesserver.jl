@@ -51,7 +51,7 @@ function producerTest()
 end
 
 ##
-producerTest()
+# producerTest()
 ##
 mutable struct Server 
     queue::Int
@@ -75,6 +75,7 @@ function serverMaybeProcess(pq, tNow, server::Server)
             server.coresAvailable += 1
             serverMaybeProcess(pq, tNow, server)
             server.callback(pq, tNow)
+            sv1("Hurray! Person exited $(serverStr(server)) at $tNow")
         end, tNext))
         # push!(pq, SEvent(server.callback, tNext))
     end
@@ -96,7 +97,7 @@ function stest1()
     pq = BinaryMinHeap{SEvent}()
 
     s1 = serverSimple( ; cores=4, name="MonkeyHut") do pq, tNow
-        println("Hurray! Person exited $(serverStr(s1)) at $tNow")
+        println("MONKEY POWER!")
     end
     producer(pq, 0, Exponential(inv(3)), (pq, tNow) -> serverEnter(pq, tNow, s1) ; tEnd=20)
     while ! (isempty(pq))
@@ -108,4 +109,74 @@ function stest1()
     pq 
 end
 
-stest1()
+##
+# stest1()
+##
+
+function stest2()
+    println("########################\nStarting!\n")
+    pq = BinaryMinHeap{SEvent}()
+
+    s3 = serverSimple( ; cores=3, name="DarkValley") do pq, tNow
+        println("Fear the Moloch, child ...")
+    end
+    s2 = serverSimple( ; cores=1, name="BOSS") do pq, tNow
+        println("BRAINS!")
+        serverEnter(pq, tNow, s3)
+    end
+    s1 = serverSimple( ; cores=4, name="MonkeyHut") do pq, tNow
+        println("MONKEY POWER!")
+        serverEnter(pq, tNow, s2)
+    end
+
+    producer(pq, 0, Exponential(inv(3)), (pq, tNow) -> serverEnter(pq, tNow, s1) ; tEnd=2)
+    while ! (isempty(pq))
+        cEvent = pop!(pq)
+        println("-> receiving event at $(cEvent.time)")
+        cEvent.callback(pq, cEvent.time)
+    end
+    println("The End!")
+    pq 
+end
+
+
+# stest2()
+##
+
+function stest3()
+    println("########################\nStarting!\n")
+    pq = BinaryMinHeap{SEvent}()
+
+    s3 = serverSimple( ; cores=3, name="DarkValley") do pq, tNow
+        println("Fear the Moloch, child ...")
+    end
+    s2_a = serverSimple( ; cores=1, name="Zombie") do pq, tNow
+        println("BRAINS!")
+        serverEnter(pq, tNow, s3)
+    end
+    s2_b = serverSimple( ; cores=2, name="Kurosh") do pq, tNow
+        println("MALAKH <_<")
+        serverEnter(pq, tNow, s3)
+    end
+    s1 = serverSimple( ; cores=6, name="MonkeyHut") do pq, tNow
+        println("MONKEY POWER!")
+        if s2_a.coresAvailable >= s2_b.coresAvailable && ! (s2_a.coresAvailable == s2_b.coresAvailable && s2_a.queue > s2_b.queue)
+            serverEnter(pq, tNow, s2_a)
+        else
+            serverEnter(pq, tNow, s2_b)
+        end
+    end
+
+    producer(pq, 0, Exponential(inv(3)), (pq, tNow) -> serverEnter(pq, tNow, s1) ; tEnd=3)
+    while ! (isempty(pq))
+        cEvent = pop!(pq)
+        println("-> receiving event at $(cEvent.time)")
+        cEvent.callback(pq, cEvent.time)
+    end
+    println("The End!")
+    pq 
+end
+
+
+stest3()
+##
