@@ -1,3 +1,7 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+
+using Random
+
 function initConf(rows, columns)
     # [ [0, [rand((-1,1)) for i in 1:height ]..., 0] for j in 1:width ]
     [ rand((-1, 1)) for h in 1:columns, w in 1:rows ]
