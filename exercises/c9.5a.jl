@@ -67,3 +67,7 @@ data_normals_anti2 = [z * sign for i in 1:(10^n * 2) for z in rand(Normal()) for
 data_anti2 = [Zorg(z) for z in data_normals_anti2]
 println("anti2: mean=$(mean(data_anti2)), var=$(std(data_anti2; corrected=true)^2)")
 
+# anti: mean=6.535639908953644, var=3180.9770175447525
+# anti3: mean=6.588838284307543, var=3724.602531124643
+# Normal: mean=6.6707031715005245, var=3724.033311621086
+# anti2: mean=6.553470920372149, var=3238.462526053266
