@@ -19,13 +19,21 @@ function sv1(args... ; kwargs...)
 end
 
 ##
-function producer(pq, tNow, rd, callback; tEnd=Inf)
+function producer(pq, tNow, rd, callback; tEnd=Inf, arrivalDist=false)
     sv1("producer called at $tNow")
-    tNext = tNow + rand(rd)
+    tNext = rand(rd)
+    if arrivalDist == false 
+        tNext += tNow
+    #     sv1("Producer is in between-arrival mode")
+    #     @labeled arrivalDist
+    # else
+    #     sv1("Producer is in exact-arrival mode")
+    #     @labeled arrivalDist
+    end
     if tNext < tEnd 
         sv1("production scheduled for $tNext")
         push!(pq, SEvent((pq, tNow) -> begin
-            producer(pq, tNow, rd, callback ; tEnd=tEnd)
+            producer(pq, tNow, rd, callback ; tEnd=tEnd, arrivalDist=arrivalDist)
             callback(pq, tNow) 
         end, tNext))
         # push!(pq, SEvent(callback, tNext))

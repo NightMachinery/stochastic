@@ -1,16 +1,16 @@
-include("./pprocess.jl")
+include("../common/pprocess.jl")
 include("../common/plotSamples2.jl")
 using DataFrames
 ##
 @doc """
 λs should be a singleton [λ] for now.
-"""->function drawP2D(; λs = [1], G = P2D, n = 10^2, colorscheme = ColorSchemes.gnuplot2, alphas = [0.5], kwargs...)
+""" -> function drawP2D(; λs=[1], G=P2D, n=10^2, colorscheme=ColorSchemes.gnuplot2, alphas=[0.5], kwargs...)
     data = [
     let xy = G(λ)
-        DataFrame(λ = λ,
-            n = i,
-            xs = xy[:,1],
-            ys = xy[:,2]
+        DataFrame(λ=λ,
+            n=i,
+            xs=xy[:,1],
+            ys=xy[:,2]
         )
     end
         for i ∈ 1:n, λ ∈ λs
@@ -27,24 +27,24 @@ using DataFrames
         return minz:stepz:maxz
     end
     # levels = [0:0.02:0.2; 0.3:0.2:2;]
-    colormap = x->get(colorscheme, x)
+    colormap = x -> get(colorscheme, x)
     if colorscheme isa Function
         colormap = colorscheme
     end
-    plt = plot(data, x = :xs, y = :ys,
+    plt = plot(data, x=:xs, y=:ys,
         # Scale.color_continuous(colormap = x->colorant"red"),
-        Scale.color_sqrt(colormap = colormap),
-        style(; default_color = RGB(0, 0, 1),
-            alphas = alphas,
-            highlight_width = 0cm,
-            line_width = 0.7mm,
-            grid_color = RGBA(0, 1, 0, 0),
+        Scale.color_sqrt(colormap=colormap),
+        style(; default_color=RGB(0, 0, 1),
+            alphas=alphas,
+            highlight_width=0cm,
+            line_width=0.7mm,
+            grid_color=RGBA(0, 1, 0, 0),
             kwargs...
         ),
         # Geom.density2d(levels = levels),
-        color = :n,
+        color=:n,
         Geom.point(),
-        Coord.cartesian(fixed = true,
+        Coord.cartesian(fixed=true,
         # xmin = 9.5, xmax = 10.5,
         # ymin = 19.5, ymax = 20.5,
         # xmin = 0, xmax = 20,
@@ -74,11 +74,11 @@ function pcircle(λ)
             return d * areafactor / 100
         end
     end
-    nhP2D(10^2, circlerate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)  
+    nhP2D(10^2, circlerate ; xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)  
 end
 # plt = drawP2D(G = pcircle, n = 8 * (10^2), colorscheme = ColorSchemes.prism, alpha = 0.6)
 # plt |> SVG("./tmp/circle.svg", 20cm, 20cm)
-@plot drawP2D(G = pcircle, n = 7 * (10^2), colorscheme = ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha = 0.6) html ""
+@plot drawP2D(G=pcircle, n=7 * (10^2), colorscheme=ColorSchemes.linear_ternary_blue_0_44_c57_n256, alpha=0.6) html ""
 ##
 using Images, TestImages, Colors
 poissonimg = Gray{Float64}.(load("./resources/poissonjokerman.png"))
@@ -87,7 +87,7 @@ set0 = Gray{Float64}.(load("./resources/set0c.jpg"))
 mirsadeghi = Gray{Float64}.(load("./resources/mirsadeghi.png"))
 maze = Gray{Float64}.(load("./resources/maze.png"))
 img = maze
-function imgrate(; precision = 10^1, width = 20, pslope = 1, transform = identity)
+function imgrate(; precision=10^1, width=20, pslope=1, transform=identity)
     imgsize = size(img)
     imgw = imgsize[2]
     imgh = imgsize[1]
@@ -103,13 +103,13 @@ function imgrate(; precision = 10^1, width = 20, pslope = 1, transform = identit
         ry = ceil(Int, ((y - ymin) / height) * imgh)
         transform((1 - img[(imgh - ry + 1),rx])^pslope) * precision 
     end
-    nhP2D(precision, rate ; xmin = xmin,xmax = xmax,ymin = ymin,ymax = ymax)   
+    nhP2D(precision, rate ; xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax)   
 end
-@plot drawP2D(G = (λ)->imgrate(precision = 10^0, width = 20, pslope = 6, transform = (x)->(x)),
-point_size = 0.7mm,
-n = 10 * 10^2,
+@plot drawP2D(G=(λ) -> imgrate(precision=10^0, width=20, pslope=6, transform=(x) -> (x)),
+point_size=0.7mm,
+n=10 * 10^2,
     # colorscheme = ColorSchemes.jet,
-    colorscheme = function (x)
+    colorscheme=function (x)
     cs = ColorSchemes.gnuplot2
     # returning white effectively clears the more dense regions:))
     cutoff =  0.4
@@ -126,21 +126,21 @@ n = 10 * 10^2,
     # return get(cs, x^2 * 3) 
     # return get(cs, rand())
 end,
-    alphas = [0.6]) png ""
+    alphas=[0.6]) png ""
 ##
-function drawP(λs = [1,2])
-    plt = drawSamples((λ)->P(λ), (λ)->rand(Distributions.Poisson(λ)), λs, title1 = "Poisson (simulated via memoized tables)", title2 = "Distributions.jl's")
+function drawP(λs=[1,2])
+    plt = drawSamples((λ) -> P(λ), (λ) -> rand(Distributions.Poisson(λ)), λs, title1="Poisson (simulated via memoized tables)", title2="Distributions.jl's")
     display(plt)
     # plt  |> SVGJS("./plots/Normal(mean=$mean, std=$std).svg", 26cm, 20cm)
 end
 
-function drawPP(λs = [1] ; n = 10, from = -10, to = 10, G = PP, V = PPExp, alpha_d = 0.8, alpha_c = 0.8, colorscheme = ColorSchemes.gnuplot2)
-    p_shared::Array{Any,1} = [style(grid_color = RGBA(0, 1, 0, 0))]
-    append!(p_shared, [Guide.xlabel(""), Coord.Cartesian(xmin = from, xmax = to)])
+function drawPP(λs=[1] ; n=10, from=-10, to=10, G=PP, V=PPExp, alpha_d=0.8, alpha_c=0.8, colorscheme=ColorSchemes.gnuplot2)
+    p_shared::Array{Any,1} = [style(grid_color=RGBA(0, 1, 0, 0))]
+    append!(p_shared, [Guide.xlabel(""), Coord.Cartesian(xmin=from, xmax=to)])
     # append!(p_shared, [Guide.xlabel(""), Coord.Cartesian(xmin = 0, xmax = 100, ymin = 0, ymax = 100)])
     p_d = [Guide.ylabel("Occurences")]
     p_c = [Guide.ylabel("Occurences (cumulative)")]
-    plt = drawSamples((λ)->G(λs[1], from, to), (λ)->V(λs[2], from, to), [1:n;], n = 1, title1 = "Poisson Processes (λ=$(λs[1]); Colors show different runs; Total runs $n)", title2 = "Poisson Processes (λ=$(λs[2]); Colors show different runs; Total runs $n)", density = false, alpha_d = alpha_d, alpha_c = alpha_c, p_shared = p_shared, p_d = p_d, p_c = p_c, colorscheme = colorscheme)
+    plt = drawSamples((λ) -> G(λs[1], from, to), (λ) -> V(λs[2], from, to), [1:n;], n=1, title1="Poisson Processes (λ=$(λs[1]); Colors show different runs; Total runs $n)", title2="Poisson Processes (λ=$(λs[2]); Colors show different runs; Total runs $n)", density=false, alpha_d=alpha_d, alpha_c=alpha_c, p_shared=p_shared, p_d=p_d, p_c=p_c, colorscheme=colorscheme)
     display(plt)
     # plt  |> PNG("./plots/play/$(uuid4().value).png", 26cm, 20cm, dpi = 150)
     println("Done!")
@@ -148,25 +148,25 @@ end
 ##
 drawP([1:3:100;])
 ##
-drawPP([0.5,10], n = 20)
-drawPP([5,5], n = 20)
-drawPP([0.1,0.5], n = 70, from = 0, to = 100, alpha_d = 0.8, alpha_c = 0.7, colorscheme = ColorSchemes.devon)
-drawPP([0.08,0.15], n = 320, from = 0, to = 100, alpha_d = 0.8, alpha_c = 0.9, colorscheme = ColorSchemes.sun,
-G = function (λ, from, to)
+drawPP([0.5,10], n=20)
+drawPP([5,5], n=20)
+drawPP([0.1,0.5], n=70, from=0, to=100, alpha_d=0.8, alpha_c=0.7, colorscheme=ColorSchemes.devon)
+drawPP([0.08,0.15], n=320, from=0, to=100, alpha_d=0.8, alpha_c=0.9, colorscheme=ColorSchemes.sun,
+G=function (λ, from, to)
     res = PP(λ, from, to) 
     return res .+ rand(Normal(0, 500))
 end,
-V = function (λ, from, to)
+V=function (λ, from, to)
     res = PP(λ, from, to) 
-    return map(x->x + rand(Normal(0, 300)), res)
+    return map(x -> x + rand(Normal(0, 300)), res)
 end)
 ##
-function layerpdf(s ; color = RGBA(0, 1, 0, 0.7), line_width = 0.5mm, density = true, style_more...)
+function layerpdf(s ; color=RGBA(0, 1, 0, 0.7), line_width=0.5mm, density=true, style_more...)
     return layer(
-        x = s,
+        x=s,
         Geom.line(),
-        Stat.histogram(bincount = 10),
-        style( ; line_width = line_width, default_color = color, style_more...),
+        Stat.histogram(bincount=10),
+        style( ; line_width=line_width, default_color=color, style_more...),
     )
 end
 
@@ -174,18 +174,18 @@ end
 colorscheme = ColorSchemes.seismic
 
 # set_default_plot_size(25cm,25cm)
-drawPP(["undef", "undef"], n = 100, from = 0, to = 100, alpha_d = 0.5, alpha_c = 0.9,
+drawPP(["undef", "undef"], n=100, from=0, to=100, alpha_d=0.5, alpha_c=0.9,
 # colorscheme = ColorSchemes.gist_rainbow,
-colorscheme = function (i, n, alpha)
+colorscheme=function (i, n, alpha)
     # RGBA(get(colorscheme, 1 - (i / n)), alpha)
     RGBA(get(colorscheme, (i / n)), alpha)
     # RGBA(get(colorscheme, rand()), alpha)
 end,
-G = function (λ, from, to)
+G=function (λ, from, to)
     # sqrt(to^2-x^2)
-    nhPP(10^2, (x)->sqrt(to^2 - x^2) / 8, from, to)
+    nhPP(10^2, (x) -> sqrt(to^2 - x^2) / 8, from, to)
 end,
-V = function (λ, from, to)
+V=function (λ, from, to)
     0
     # nhPP(10^4, (x)->abs(tan(x)) * 10, from, to)
 end)
@@ -252,7 +252,7 @@ PRng = Poisson(20)
 #   --------------
 #   samples:          10000
 #   evals/sample:     1
-@benchmark nhPP(10^2, (x)->sqrt(10^2 - x^2) / 8, 0, 10) samples = n seconds = Inf
+@benchmark nhPP(10^2, (x) -> sqrt(10^2 - x^2) / 8, 0, 10) samples = n seconds = Inf
 # BenchmarkTools.Trial: 
 #   memory estimate:  22.77 KiB
 #   allocs estimate:  3
