@@ -3,6 +3,9 @@
 # present price of the stock is 100. Assume the model of Section 7.8, with
 # µ = −0.05, σ = 0.3, and employ the strategy presented there.
 
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 using Distributions, Statistics
 
 stdNormal = Normal()

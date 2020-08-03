@@ -1,3 +1,5 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
 
 include("../common/plotSamples2.jl")
 using Distributions, StatsBase
@@ -59,11 +61,11 @@ function Q8c(α)
 end
 ##
 drawDistribution(Fx5)
-drawDistribution(Q8a)
+@plot drawDistribution(Q8a) png "" "exercises/plots"
 @labeled Q8a_cdf(0.5)
 ##
-display(drawDistribution(Q8b))
+@plot drawDistribution(Q8b) png "" "exercises/plots"
 @labeled Q8b_cdf(0.5)
 @labeled Q8b_cdf(1)
 ##
-drawSamples((x) -> Q8c([1 // 3,0,1 // 3,0,1 // 3]), (x) -> Q8a()) # should be the same as Q8a
+@plot drawSamples((x) -> Q8c([1 // 3,0,1 // 3,0,1 // 3]), (x) -> Q8a()) png "" "exercises/plots" true # should be the same as Q8a

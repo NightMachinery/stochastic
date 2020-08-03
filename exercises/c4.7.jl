@@ -1,3 +1,6 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 using OffsetArrays
 function D()
     exhaustMe = OffsetArray(repeat([false], 11), 2:12)

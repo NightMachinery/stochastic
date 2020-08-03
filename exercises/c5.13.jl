@@ -1,3 +1,6 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 include("../common/plotSamples2.jl")
 using Distributions, StatsBase
 
@@ -15,5 +18,5 @@ function FxP3(power)
     end
 end
 ##
-drawSamples((x) -> FxP2(4), (x) -> FxP(4))
-drawSamples((x) -> FxP3(4), (x) -> FxP(4))
+@plot drawSamples((x) -> FxP2(4), (x) -> FxP(4)) png "" "exercises/plots" true
+@plot drawSamples((x) -> FxP3(4), (x) -> FxP(4)) png "" "exercises/plots" true

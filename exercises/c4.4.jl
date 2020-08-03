@@ -1,3 +1,6 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 function myPermute(a)
     a = collect(a)
     len = length(a)

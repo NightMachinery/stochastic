@@ -6,6 +6,9 @@
 # {{a -> 6 (1 - Sqrt[1 - y]/Sqrt[3])}, {a -> 
 #    6 (1 + Sqrt[1 - y]/Sqrt[3])}} 
 
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 function X_C5_2()
     u = rand()
     if 0 <= u <= 1 / 4
@@ -16,4 +19,4 @@ function X_C5_2()
 end
 
 include("../common/plotSamples2.jl")
-drawDistribution(X_C5_2)
+@plot drawDistribution(X_C5_2) png "" "exercises/plots"

@@ -77,7 +77,7 @@ function drawSamples(E, V, λs=[1] ; n=10^4, title1="Ours", title2="Theirs",  p_
     return (vstack(out...))
 end
 ##
-macro plot(cmd, format="pngplus", prefix="")
+macro plot(cmd, format="pngplus", prefix="", path="tmp/plots", forceNames=false)
     pltcmd = :(plt = $cmd)
     # cmdstr = replace(string(cmd), '\n' => " PANDA ")
     cmdstr = string(cmd)
@@ -90,16 +90,20 @@ macro plot(cmd, format="pngplus", prefix="")
     prefix = string(prefix)
     # /Applications/Firefox.app/Contents/MacOS/firefox
     return quote
-        outdir = "$(pwd())/tmp/plots"
+        outdir = "$(pwd())/$($path)"
         mkpath(outdir)
 
-        if occursin('\n', $cmdstr)
-            name = uuid4()
+        name = $cmdstr
+        if any(['\n', '/']) do badChar occursin(badChar, name) end
+            if $forceNames
+                name = replace(replace(replace(replace(name, "\n" => " "), "//" => " MOD "), "/" => " MOD "), r"#[^#]*#" => "")
+                
+            else
+                name = string(uuid4())
+            end
             open("$outdir/$name.jl", "w") do io
                 print(io, $cmdstr)
             end
-        else
-            name = $cmdstr
         end
 
         file = "$(outdir)/$($prefix)$(name).$($format)" # can't quote expressions inside ``.

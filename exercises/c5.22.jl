@@ -1,3 +1,6 @@
+(@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
+using Random
+
 include("../common/plotSamples2.jl")
 using Distributions, StatsBase
 
@@ -26,4 +29,4 @@ end
 let xs = 0:0.05:1
     display(plot(x=xs, y=[Q22_pdf(x) for x in xs], Geom.line()))
 end
-drawSamples((x) -> Q22(), (x) -> 0 ; n=10^5)
+@plot drawSamples((x) -> Q22(), (x) -> 0 ; n=10^5) png "" "exercises/plots" true
