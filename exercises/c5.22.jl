@@ -29,4 +29,4 @@ end
 let xs = 0:0.05:1
     display(plot(x=xs, y=[Q22_pdf(x) for x in xs], Geom.line()))
 end
-@plot drawSamples((x) -> Q22(), (x) -> 0 ; n=10^5) png "" "exercises/plots" true
+@plot drawSamples((x) -> Q22(), (x) -> 0 ; n=10^5) png "c5.22 - " "exercises/plots" true

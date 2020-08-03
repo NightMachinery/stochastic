@@ -61,11 +61,11 @@ function Q8c(α)
 end
 ##
 drawDistribution(Fx5)
-@plot drawDistribution(Q8a) png "" "exercises/plots"
+@plot drawDistribution(Q8a) png "c5.8a - " "exercises/plots"
 @labeled Q8a_cdf(0.5)
 ##
-@plot drawDistribution(Q8b) png "" "exercises/plots"
+@plot drawDistribution(Q8b) png "c5.8b - " "exercises/plots"
 @labeled Q8b_cdf(0.5)
 @labeled Q8b_cdf(1)
 ##
-@plot drawSamples((x) -> Q8c([1 // 3,0,1 // 3,0,1 // 3]), (x) -> Q8a()) png "" "exercises/plots" true # should be the same as Q8a
+@plot drawSamples((x) -> Q8c([1 // 3,0,1 // 3,0,1 // 3]), (x) -> Q8a()) png "c5.8c - " "exercises/plots" true # should be the same as Q8a

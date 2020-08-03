@@ -101,7 +101,7 @@ macro plot(cmd, format="pngplus", prefix="", path="tmp/plots", forceNames=false)
             else
                 name = string(uuid4())
             end
-            open("$outdir/$name.jl", "w") do io
+            open("$outdir/$($prefix)$name.jl", "w") do io
                 print(io, $cmdstr)
             end
         end

@@ -19,4 +19,4 @@ function X_C5_2()
 end
 
 include("../common/plotSamples2.jl")
-@plot drawDistribution(X_C5_2) png "" "exercises/plots"
+@plot drawDistribution(X_C5_2) png "c5.2 - " "exercises/plots"

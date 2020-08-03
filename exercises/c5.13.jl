@@ -18,5 +18,5 @@ function FxP3(power)
     end
 end
 ##
-@plot drawSamples((x) -> FxP2(4), (x) -> FxP(4)) png "" "exercises/plots" true
-@plot drawSamples((x) -> FxP3(4), (x) -> FxP(4)) png "" "exercises/plots" true
+@plot drawSamples((x) -> FxP2(4), (x) -> FxP(4)) png "c5.13 max - " "exercises/plots" true
+@plot drawSamples((x) -> FxP3(4), (x) -> FxP(4)) png "c5.13 rejection - " "exercises/plots" true
