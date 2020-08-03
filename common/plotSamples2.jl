@@ -97,7 +97,7 @@ macro plot(cmd, format="pngplus", prefix="", path="tmp/plots", forceNames=false)
         if any(['\n', '/']) do badChar occursin(badChar, name) end
             if $forceNames
                 name = replace(replace(replace(replace(name, "\n" => " "), "//" => " MOD "), "/" => " MOD "), r"#[^#]*#" => "")
-                
+                # alt syntax: @> "Hello/world!" replace("wor"=>"*8*") replace("/"=>"MOD")
             else
                 name = string(uuid4())
             end
