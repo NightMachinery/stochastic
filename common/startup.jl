@@ -24,6 +24,17 @@ macro labeled(body)
     end
 end
 
+macro copycode(name, definition)
+    # @def insertme some_code...
+    # @insertme => would insert some_code... here
+    # from http://www.stochasticlifestyle.com/type-dispatch-design-post-object-oriented-programming-julia/
+  return quote
+      macro $(esc(name))()
+          esc($(Expr(:quote, definition)))
+      end
+  end
+end
+
 function sa(x)
     show(IOContext(stdout, :limit=>false), MIME"text/plain"(), x)
     println()

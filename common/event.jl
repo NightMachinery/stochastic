@@ -19,7 +19,7 @@ function sv1(args... ; kwargs...)
 end
 
 ##
-function producer(pq, tNow, rd, callback; tEnd=Inf, arrivalDist=false)
+function producer(pq, tNow, rd, callback; tEnd=Inf, arrivalDist=false, v=1)
     sv1("producer called at $tNow")
     tNext = rand(rd)
     if arrivalDist == false 
@@ -32,11 +32,19 @@ function producer(pq, tNow, rd, callback; tEnd=Inf, arrivalDist=false)
     end
     if tNext < tEnd 
         sv1("production scheduled for $tNext")
-        push!(pq, SEvent((pq, tNow) -> begin
-            producer(pq, tNow, rd, callback ; tEnd=tEnd, arrivalDist=arrivalDist)
-            callback(pq, tNow) 
-        end, tNext))
-        # push!(pq, SEvent(callback, tNext))
+        if v == 1
+            push!(pq, SEvent((pq, tNow) -> begin
+                producer(pq, tNow, rd, callback ; tEnd=tEnd, arrivalDist=arrivalDist, v=v)
+                callback(pq, tNow) 
+            end, tNext))
+        elseif v == 2
+            push!(pq, SEvent((tNow) -> begin
+                producer(pq, tNow, rd, callback ; tEnd=tEnd, arrivalDist=arrivalDist, v=v)
+                callback(tNow) 
+            end, tNext))
+        else
+            error("Version '$v' not supported by this API.")
+        end
     end
 end
 

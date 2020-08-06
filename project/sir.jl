@@ -1,1 +1,0 @@
-@enum InfectionStatus S = 1 I R 
