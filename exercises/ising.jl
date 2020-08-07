@@ -53,7 +53,7 @@ imshow(ising())
 imshow(ising(; β=1))
 imshow(ising(; β=-1))
 ##
-data = [toGray.(ising(;β=i)) for i in -2:0.02:0.6]
+data = [(ising(;β=i)) for i in -2:0.02:0.6]
 @defonce const criticalβ = log(1 + √2) / 2 # 0.44
 using Images, ImageView, Gtk, TestImages, GtkReactive, Distributions
 using PerceptualColourMaps
@@ -65,11 +65,19 @@ begin
     imshow(canvas, imgsig)
     endcolorview(RGB, permutedims(applycolormap(toGray.(ising(;β=-6)), cmap("R3")), [3, 1, 2]))
 end
-function animateising(; colormap="R1", framesleep=0.1, initsleep=1, kwargs...)
+function isReverse(i, reverse, endframe)
+    endframe = length(data)
+    if rand() < 1 - (i / endframe)^2.3
+        reverse
+    else
+        !reverse
+    end
+end
+toGray(x) = x == 1 ? rand(Uniform(0.6, 1)) : 0.0 # rand(Uniform(0.0, 0.0)) # 0.0
+function animateising(; colormap="R1", framesleep=0.1, initsleep=1, reverse=false, endframe=length(data), kwargs...)
     begin
-        toGray(x) = x == 1 ? rand(Uniform(0.7, 1)) : rand(Uniform(0.0, 0.1)) # 0.0
     # R3 is beautiful
-        cdata = [colorview(RGB, permutedims(applycolormap(d, cmap(colormap ; kwargs...)), [3, 1, 2])) for d in data]
+        cdata = [colorview(RGB, permutedims(applycolormap(toGray.(d), cmap(colormap ; reverse=isReverse(i, reverse, endframe), kwargs...)), [3, 1, 2])) for (i, d) in enumerate(data) if i <= endframe]
     end
     begin
         push!(imgsig, cdata[1])
