@@ -1,10 +1,17 @@
 const SunHasSet = true
 
-import Pkg
+# using TerminalExtensions
+
+using Pkg
 # Pkg.add("OhMyREPL")
 
 # using OhMyREPL
 using BenchmarkTools, Infiltrator, FreqTables, RDatasets
+
+##
+vscI() = pushdisplay(VSCodeServer.InlineDisplay())
+vscINo() = popdisplay()
+##
 
 more(content) = more(repr("text/plain", content))
 # using Markdown

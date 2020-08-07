@@ -45,13 +45,45 @@ function ising(; β=0, rows=100, columns=100, n=10^6)
 end
 
 ##
-using Images, ImageView
+using Images, ImageView, Gtk, TestImages, GtkReactive
 # this will show an image in which the highest value
 # of the array is white and the lowest is black 
 # imshow(rand(Int, 3, 3))
 imshow(ising())
 imshow(ising(; β=1))
 imshow(ising(; β=-1))
+##
+data = [toGray.(ising(;β=i)) for i in -2:0.02:0.6]
+@defonce const criticalβ = log(1 + √2) / 2 # 0.44
+using Images, ImageView, Gtk, TestImages, GtkReactive, Distributions
+using PerceptualColourMaps
+begin
+    imgsig = Signal(cdata[1])
+    guidict = imshow_gui((300, 300))
+    canvas = guidict["canvas"]
+    Gtk.showall(guidict["window"])
+    imshow(canvas, imgsig)
+    endcolorview(RGB, permutedims(applycolormap(toGray.(ising(;β=-6)), cmap("R3")), [3, 1, 2]))
+end
+function animateising(; colormap="R1", framesleep=0.1, initsleep=1, kwargs...)
+    begin
+        toGray(x) = x == 1 ? rand(Uniform(0.7, 1)) : rand(Uniform(0.0, 0.1)) # 0.0
+    # R3 is beautiful
+        cdata = [colorview(RGB, permutedims(applycolormap(d, cmap(colormap ; kwargs...)), [3, 1, 2])) for d in data]
+    end
+    begin
+        push!(imgsig, cdata[1])
+        sleep(initsleep)
+        for i in 2:length(cdata)
+        # push!(imgsig, rand(10, 10))
+            push!(imgsig, cdata[i])
+            sleep(framesleep)
+        end
+    end
+end
+function showising(β, colormap="R1" ; kwargs...)
+    push!(imgsig, colorview(RGB, permutedims(applycolormap(toGray.(ising(;β=β)), cmap(colormap; kwargs...)), [3, 1, 2])));
+end
 ##
 # imshow rocks! We can even add a third dimension for β!
 isings = cat((ising(;β=i) for i in -3:0.1:3)... ; dims=3)

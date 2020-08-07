@@ -1,0 +1,49 @@
+  imshow()
+
+  Choose an image to display via a file dialog.
+
+  imshow(img; axes=(1,2), name="ImageView") -> guidict
+  imshow(img, clim; axes=(1,2), name="ImageView") -> guidict
+  imshow(img, clim, zoomregion, slicedata, annotations; axes=(1,2), name="ImageView") -> guidict
+
+  Display the image img in a new window titled with name, returning a
+  dictionary guidict containing any Reactive signals or GtkReactive widgets.
+  If the image is 3 or 4 dimensional, GUI controls will be added for slicing
+  along "extra" axes. By default the two-dimensional slice containing axes 1
+  and 2 are shown, but that can be changed by passing a different setting for
+  axes.
+
+  If the image is grayscale, by default contrast is set by a scaleminmax
+  object whose end-points can be modified by right-clicking on the image. If
+  clim == nothing, the image's own native contrast is used (clamp01nan). You
+  may also pass a custom contrast function.
+
+  Finally, you may specify GtkReactive.ZoomRegion and SliceData signals. See
+  also roi, as well as any annotations that you wish to apply.
+
+  imshow(canvas, imgsig::Signal) -> guidict
+  imshow(canvas, imgsig::Signal, zr::Signal{ZoomRegion}) -> guidict
+  imshow(frame::Frame, canvas, imgsig::Signal, zr::Signal{ZoomRegion}) -> guidict
+
+  Display imgsig (a Signal of an image) in canvas, setting up panning and
+  zooming. Optionally include a frame for preserving aspect ratio. imgsig must
+  be two-dimensional (but can be a Signal-view of a higher-dimensional
+  object).
+
+  Example
+  ≡≡≡≡≡≡≡≡≡
+
+  using ImageView, TestImages, Gtk
+  mri = testimage("mri");
+  # Create a canvas `c`. There are other approaches, like stealing one from a previous call
+  # to `imshow`, or using GtkReactive directly.
+  guidict = imshow_gui((300, 300))
+  c = guidict["canvas"];
+  # To see anything you have to call `showall` on the window (once)
+  Gtk.showall(guidict["window"])
+  # Create the image Signal
+  imgsig = Signal(mri[:,:,1]);
+  # Show it
+  imshow(c, imgsig)
+  # Now anytime you want to update, just push! a new image
+  push!(imgsig, mri[:,:,8])
