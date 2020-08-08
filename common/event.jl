@@ -2,9 +2,13 @@ using Distributions
 using DataStructures
 import Base.isless
 
-struct SEvent
-    callback
+struct SEvent{F1}
+    callback::F1
     time::Float64
+end
+
+function SEvent(callback::F1, time) where F1
+    SEvent{F1}(callback, time)
 end
 
 function isless(a::SEvent, b::SEvent)
@@ -15,6 +19,19 @@ serverVerbosity = 1
 function sv1(args... ; kwargs...)
     if serverVerbosity >= 1
         println(args... ; kwargs...)
+    end
+end
+macro sv1(body)
+    bodystr = string(body)
+    quote
+        out = $(esc(body))
+        if serverVerbosity >= 1
+            res = @> map(split(string(out), "\n")) do line
+                "\t$line"
+            end join("\n")
+            println("$($bodystr) =>$(res)")
+        end
+        out
     end
 end
 
@@ -68,3 +85,14 @@ end
 
 ##
 # producerTest()
+##
+s1 = SEvent(10) do x
+    4
+end
+s2 = SEvent(3) do x
+    5
+end
+using DataStructures
+a = MutableBinaryMinHeap{SEvent{<:Function}}()
+
+push!(a,s1)
