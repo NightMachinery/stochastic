@@ -1,0 +1,3 @@
+#+TITLE: Pad
+
+We can create transformer functions that create a global map of all places, and place people inside a single scene. This might be simpler than stacking scenes using `hbox` and `vbox`. It might also be visually more pleasing.

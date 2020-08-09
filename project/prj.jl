@@ -1,10 +1,10 @@
 module SIR
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random, Distributions, DataStructures, Lazy, MLStyle
+using Random, Distributions, DataStructures, Lazy, MLStyle, Makie
 using MLStyle.AbstractPatterns: literal
 include("../common/event.jl")
-##
+#
 # We are assuming the unit time is one day.
 
 @enum InfectionStatus Healthy = 1 Recovered RecoveredRemission Sick Dead 
@@ -44,14 +44,13 @@ function leisureDuration(workplace::Workplace)
     return 1.0 - workDuration(workplace)
 end
 
-idCounter = 0
 mutable struct Person # <: AbstractAgent
     id::Int
-    pos::NTuple{2,Float64}
+    pos::Node{NTuple{2,Float64}}
     # vel::NTuple{2, Float64}
 
-    status::InfectionStatus
-    currentPlace::Place # Union{Place,Nothing}
+    status::Node{InfectionStatus}
+    currentPlace::Node{Place} # Union{Place,Nothing}
     workplace::Union{Workplace,Nothing}
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
@@ -60,7 +59,7 @@ mutable struct Person # <: AbstractAgent
         sickEvent=nothing
         # ,removableEvents=[]
         )
-        me = new(id, pos, status, currentPlace, workplace, isIsolated, 
+        me = new(id, Node(pos), Node(status), Node(currentPlace), workplace, isIsolated, 
         sickEvent
         # ,removableEvents
         )
@@ -101,17 +100,6 @@ mutable struct CoronaModel{F1,F2,F3,F4}
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
-    # function CoronaModel{F1}(; centralPlace=Place(; width=100, height=70),
-    #      marketplaces=[], smallGridMode=false, nextSickness,
-    #      pq=MutableBinaryMinHeap{SEvent}(),
-    #      nextConclusion::F1=defaultNextConclusion,
-    #      hasDied=defaultHasDiedλ(0.9),
-    #      nextCompleteRecovery=defaultNextCompleteRecovery
-    #      ) where F1 <: Function
-    #     me = new(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery) # uninitialized
-    #     me.nextSickness = (p::Person) -> nextSickness(me, p)
-    #     me
-    # end
 end
 function CoronaModel(; centralPlace=Place(; width=100, height=70),
     marketplaces=[], smallGridMode=false, nextSickness::F4,
@@ -124,19 +112,20 @@ function CoronaModel(; centralPlace=Place(; width=100, height=70),
     CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
-function newPerson(; kwargs...)
-    idCounter += 1
-    Person(; id=idCounter, kwargs...)
+# idCounter = 0
+# function newPerson(; kwargs...)
+#     idCounter += 1
+#     Person(; id=idCounter, kwargs...)
+# end
+function getStatus(person::Person)
+    person.status[]
 end
-
-function randomizePos(person::Person)
-    person.pos = (rand(Uniform(0, person.currentPlace.width)), rand(Uniform(0, person.currentPlace.height)))
-    return person
+function getPos(person::Person)
+    person.pos[]
 end
-
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
-    sv1("$tNow: Person #$(person.id) is $(person.status)")
+    sv1("$tNow: Person #$(person.id) is $(getStatus(person))")
 end
 macro injectModel(name)
     quote
@@ -150,6 +139,20 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
+    end
+
+    function setStatus(tNow, person::Person, status::InfectionStatus)
+        person.status[] = status
+        @alertStatus
+        recalcSickness(tNow, person.currentPlace)
+    end
+    function setPos(tNow, person::Person, pos)
+        person.pos[] = pos
+        # TODO2 react to pos change
+    end
+    function randomizePos(tNow, person::Person)
+        setPos(tNow, person, (rand(Uniform(0, person.currentPlace[].width)), rand(Uniform(0, person.currentPlace[].height))))
+        return person
     end
     # function cleanupEvents(person::Person)
     #     cleanupEvents(person.removableEvents)
@@ -172,24 +175,20 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
             genSickEvent(tNow, person)
         end
     end
+    function recalcSickness(tNow, place::Node{Place})
+        recalcSickness(tNow, place[])
+    end
     function infect(tNow, person::Person)
-        person.status = Sick
-        @alertStatus
-        recalcSickness(tNow, person.currentPlace)
+        setStatus(tNow, person, Sick)
         pushEvent(tNow + model.nextConclusion()) do tNow
             if model.hasDied()
-                person.status = Dead
+                setStatus(tNow, person, Dead)
             else
-                person.status = RecoveredRemission
-                # DONE schedule transition to Recovered
+                setStatus(tNow, person, RecoveredRemission)
                 pushEvent(tNow + model.nextCompleteRecovery()) do tNow
-                    person.status = Recovered
-                    @alertStatus
-                    recalcSickness(tNow, person.currentPlace)
+                    setStatus(tNow, person, Recovered)
                 end
             end
-            @alertStatus
-            recalcSickness(tNow, person.currentPlace)
         end
     end
     function genSickEvent(tNow, person::Person)
@@ -211,8 +210,7 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
         end
         return person
     end
-    people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos() randomizeSickness() for i in 1:n]
-    recalcSickness(0, model.centralPlace)
+    people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
     allData = []
     cEvent = nothing
     while ! (isempty(model.pq))
@@ -237,7 +235,7 @@ begin
     let λ = 0.1, rd = Exponential(inv(λ))
         global nextSicknessExp
         function nextSicknessExp(model::CoronaModel, person::Person)::Float64
-            if person.status == Healthy
+            if getStatus(person) == Healthy
                 rand(rd)
             else
                 -1.0
@@ -247,36 +245,29 @@ begin
     serverVerbosity = 0 ; @elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3);
 # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
 # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
+# storing allData 10x slowed to ~10
+# using observables 10x slowed to ~75
 end
-@assert sum(1 for p in ps[end][2] if (p.status == Recovered || p.status == Dead)) == 10^3
+@assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
 ##
 function colorPerson(person::Person)
-    @match person.status begin
-        Sick => :red    
-        Healthy => :green
-        Dead => :black
-        RecoveredRemission => :yellow
-        Recovered => :blue
+    # we'll need to disable the border to be able to hide points by using α=0
+    α = 0.6
+    @match getStatus(person) begin
+        Sick => RGBAf0(1, 0, 0, α) # :red    
+        Healthy => RGBAf0(0, 1, 0, α) # :green
+        Dead => RGBAf0(0, 0, 0, α) # :black
+        RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
+        Recovered => RGBAf0(0, 1, 1, α) # :blue
     end
 end
-using Makie
-scene = Scene()
+# scene = Scene()
 currentPeople = ps[1][2];
-# scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
+# scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
 # Makie.save("m1.png", scene)
 ##
-diffEvents = Vector{Float64}()
-for (d1, d2) in zip(ps, @view ps[2:end])
-    global maxDiffEvents
-    push!(diffEvents, d2[1] - d1[1])
-end
-@labeled maximum(diffEvents)
-@labeled mean(diffEvents)
-@labeled cov(diffEvents)
-lines(2:length(ps), diffEvents, color=:blue)
-##
 scene = Scene()
-display(scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
+display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
 function animate1(io=nothing, framerate=30)
     lastTime = 0
     for (d1, d2) in zip(ps, @view ps[2:end])
@@ -302,5 +293,15 @@ framerate = 120
     animate1(io, framerate)
     println("Saved animation!")
 end
+##
+diffEvents = Vector{Float64}()
+for (d1, d2) in zip(ps, @view ps[2:end])
+    global maxDiffEvents
+    push!(diffEvents, d2[1] - d1[1])
+end
+@labeled maximum(diffEvents)
+@labeled mean(diffEvents)
+@labeled cov(diffEvents)
+lines(2:length(ps), diffEvents, color=:blue)
 ##
 end
