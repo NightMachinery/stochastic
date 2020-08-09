@@ -2,13 +2,13 @@ using Distributions
 using DataStructures
 import Base.isless
 
-struct SEvent{F1}
-    callback::F1
+struct SEvent
+    callback
     time::Float64
 end
 
-function SEvent(callback::F1, time) where F1
-    SEvent{F1}(callback, time)
+function SEvent(callback, time)
+    SEvent(callback, time)
 end
 
 function isless(a::SEvent, b::SEvent)
@@ -86,13 +86,23 @@ end
 ##
 # producerTest()
 ##
-s1 = SEvent(10) do x
-    4
-end
-s2 = SEvent(3) do x
-    5
-end
-using DataStructures
-a = MutableBinaryMinHeap{SEvent{<:Function}}()
+if false
+    struct SEvent{F1}
+        callback::F1
+        time::Float64
+    end
+    
+    function SEvent(callback::F1, time) where F1
+        SEvent{F1}(callback, time)
+    end
+    s1 = SEvent(10) do x
+        4
+    end
+    s2 = SEvent(3) do x
+        5
+    end
+    using DataStructures
+    a = MutableBinaryMinHeap{SEvent{<:Function}}()
 
-push!(a,s1)
+    push!(a, s1)
+end

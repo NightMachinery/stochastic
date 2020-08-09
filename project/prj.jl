@@ -1,13 +1,16 @@
 module SIR
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random, Distributions, DataStructures, Lazy
+using Random, Distributions, DataStructures, Lazy, MLStyle
+using MLStyle.AbstractPatterns: literal
 include("../common/event.jl")
 ##
 # We are assuming the unit time is one day.
 
 @enum InfectionStatus Healthy = 1 Recovered RecoveredRemission Sick Dead 
-
+MLStyle.is_enum(::InfectionStatus) = true
+# tell the compiler how to match it
+MLStyle.pattern_uncall(e::InfectionStatus, _, _, _, _) = literal(e)
 ###
 # daySegments = 864 # 86400 seconds in a day
 # exp2geomP(λ) = λ/daySegments
@@ -83,7 +86,7 @@ function defaultNextCompleteRecovery()
     rand(Uniform(5, 7))
 end
 
-mutable struct CoronaModel{F1,F2,F3}
+mutable struct CoronaModel{F1,F2,F3,F4}
     centralPlace::Place
     marketplaces::Array{Marketplace}
     smallGridMode::Bool
@@ -92,10 +95,10 @@ mutable struct CoronaModel{F1,F2,F3}
     nextConclusion::F1
     hasDied::F2
     nextCompleteRecovery::F3
-    nextSickness::Function
-    function CoronaModel{F1,F2,F3}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness) where {F1,F2,F3}
-        me = new(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery)
-        me.nextSickness = (p::Person) -> nextSickness(me, p)
+    nextSickness::F4
+    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+        # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
     # function CoronaModel{F1}(; centralPlace=Place(; width=100, height=70),
@@ -111,14 +114,14 @@ mutable struct CoronaModel{F1,F2,F3}
     # end
 end
 function CoronaModel(; centralPlace=Place(; width=100, height=70),
-    marketplaces=[], smallGridMode=false, nextSickness,
+    marketplaces=[], smallGridMode=false, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
     hasDied::F2=defaultHasDiedλ(0.9),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
-    ) where {F1,F2,F3}
+    ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 function newPerson(; kwargs...)
@@ -135,8 +138,15 @@ end
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
     sv1("$tNow: Person #$(person.id) is $(person.status)")
 end
+macro injectModel(name)
+    quote
+        function $(esc(name))(args...; kwargs...)
+            $(esc(:(model.$name)))($(esc(:model)), args... ; kwargs...)
+        end
+    end
+end
 function runModel(; model::CoronaModel, n=10, simDuration=2)
-
+    @injectModel nextSickness
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
@@ -146,14 +156,14 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
     # end
     function cleanupEvents(handles::AbstractArray{Int})
         for handle in handles 
-            if handle ∉ removedEvents
-                delete!(model.pq, handle)
-                push!(removedEvents, handle)
-            end
+            cleanupEvents(handle)
         end
     end
     function cleanupEvents(handle::Int)
-        cleanupEvents([handle])
+        if handle ∉ removedEvents
+            delete!(model.pq, handle)
+            push!(removedEvents, handle)
+        end
     end
     function cleanupEvents(handle::Nothing) end
     function recalcSickness(tNow, place::Place)
@@ -183,7 +193,7 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
         end
     end
     function genSickEvent(tNow, person::Person)
-        tillNext = model.nextSickness(person)
+        tillNext = nextSickness(person)
         if tillNext >= 0
             sickEvent = pushEvent(tNow + tillNext) do tNow
                 infect(tNow, person)
@@ -203,7 +213,7 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
     end
     people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos() randomizeSickness() for i in 1:n]
     recalcSickness(0, model.centralPlace)
-
+    allData = []
     cEvent = nothing
     while ! (isempty(model.pq))
         cEvent, h = top_with_handle(model.pq)
@@ -214,25 +224,44 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
         end
         sv1("-> receiving event at $(cEvent.time)")
         cEvent.callback(cEvent.time)
+        push!(allData, (cEvent.time, deepcopy(people)))
     end
     println("Simulation ended at $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
-    people
+    # people
+    allData
 end
 
 ##
-let λ = 0.1, rd = Exponential(inv(λ))
-    global nextSicknessExp
-    function nextSicknessExp(model::CoronaModel, person::Person)::Float64
-        if person.status == Healthy
-            rand(rd)
-        else
-            -1.0
+begin
+    let λ = 0.1, rd = Exponential(inv(λ))
+        global nextSicknessExp
+        function nextSicknessExp(model::CoronaModel, person::Person)::Float64
+            if person.status == Healthy
+                rand(rd)
+            else
+                -1.0
+            end
         end
     end
-end
-serverVerbosity = 0 ; @time ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3);
+    serverVerbosity = 0 ; @elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3);
 # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
-@assert sum(1 for p in ps if (p.status == Recovered || p.status == Dead)) == 10^3
+# Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
+end
+@assert sum(1 for p in ps[end][2] if (p.status == Recovered || p.status == Dead)) == 10^3
+##
+function colorPerson(person::Person)
+    @match person.status begin
+        Sick => :red    
+        Healthy => :green
+        Dead => :black
+        RecoveredRemission => :yellow
+        Recovered => :blue
+    end
+end
+using Makie
+scene = Scene()
+currentPeople = ps[1000][2];
+scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
 ##
 end
