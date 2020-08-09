@@ -46,11 +46,11 @@ end
 
 mutable struct Person # <: AbstractAgent
     id::Int
-    pos::Node{NTuple{2,Float64}}
+    pos::NTuple{2,Float64} # Node{NTuple{2,Float64}}
     # vel::NTuple{2, Float64}
 
-    status::Node{InfectionStatus}
-    currentPlace::Node{Place} # Union{Place,Nothing}
+    status::InfectionStatus # Node{InfectionStatus}
+    currentPlace::Place # Node{Place} # Union{Place,Nothing}
     workplace::Union{Workplace,Nothing}
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
@@ -59,7 +59,7 @@ mutable struct Person # <: AbstractAgent
         sickEvent=nothing
         # ,removableEvents=[]
         )
-        me = new(id, Node(pos), Node(status), Node(currentPlace), workplace, isIsolated, 
+        me = new(id, pos, status, currentPlace, workplace, isIsolated, 
         sickEvent
         # ,removableEvents
         )
@@ -118,10 +118,13 @@ end
 #     Person(; id=idCounter, kwargs...)
 # end
 function getStatus(person::Person)
-    person.status[]
+    person.status# []
 end
 function getPos(person::Person)
-    person.pos[]
+    person.pos# []
+end
+function getPlace(person::Person)
+    person.currentPlace# []
 end
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
@@ -134,7 +137,7 @@ macro injectModel(name)
         end
     end
 end
-function runModel(; model::CoronaModel, n=10, simDuration=2)
+function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sleep=true)
     @injectModel nextSickness
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
@@ -142,16 +145,18 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
     end
 
     function setStatus(tNow, person::Person, status::InfectionStatus)
-        person.status[] = status
+        # person.status[] = status
+        person.status = status
         @alertStatus
         recalcSickness(tNow, person.currentPlace)
     end
     function setPos(tNow, person::Person, pos)
-        person.pos[] = pos
+        # person.pos[] = pos
+        person.pos = pos
         # TODO2 react to pos change
     end
     function randomizePos(tNow, person::Person)
-        setPos(tNow, person, (rand(Uniform(0, person.currentPlace[].width)), rand(Uniform(0, person.currentPlace[].height))))
+        setPos(tNow, person, (rand(Uniform(0, getPlace(person).width)), rand(Uniform(0, getPlace(person).height))))
         return person
     end
     # function cleanupEvents(person::Person)
@@ -175,9 +180,9 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
             genSickEvent(tNow, person)
         end
     end
-    function recalcSickness(tNow, place::Node{Place})
-        recalcSickness(tNow, place[])
-    end
+    # function recalcSickness(tNow, place::Node{Place})
+    #     recalcSickness(tNow, place[])
+    # end
     function infect(tNow, person::Person)
         setStatus(tNow, person, Sick)
         pushEvent(tNow + model.nextConclusion()) do tNow
@@ -211,6 +216,12 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
         return person
     end
     people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
+
+    if visualize
+        scene = Scene()
+        display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]))
+    end
+
     allData = []
     cEvent = nothing
     while ! (isempty(model.pq))
@@ -222,7 +233,7 @@ function runModel(; model::CoronaModel, n=10, simDuration=2)
         end
         sv1("-> receiving event at $(cEvent.time)")
         cEvent.callback(cEvent.time)
-        push!(allData, (cEvent.time, deepcopy(people)))
+        # push!(allData, (cEvent.time, deepcopy(people)))
     end
     println("Simulation ended at $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
@@ -248,12 +259,15 @@ begin
 # storing allData 10x slowed to ~10
 # using observables 10x slowed to ~75
 end
-@assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
+# @assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
 ##
 function colorPerson(person::Person)
+    colorStatus(getStatus(person))
+end
+function colorStatus(status::InfectionStatus)
     # we'll need to disable the border to be able to hide points by using α=0
     α = 0.6
-    @match getStatus(person) begin
+    @match status  begin
         Sick => RGBAf0(1, 0, 0, α) # :red    
         Healthy => RGBAf0(0, 1, 0, α) # :green
         Dead => RGBAf0(0, 0, 0, α) # :black
