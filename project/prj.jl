@@ -298,7 +298,7 @@ function animate1(io=nothing, framerate=30)
 end
 ##
 framerate = 120
-record(scene, "test.webm"; framerate=framerate) do io
+@time record(scene, "test.mkv"; framerate=framerate) do io
     animate1(io, framerate)
     println("Saved animation!")
 end
