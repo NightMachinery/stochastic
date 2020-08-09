@@ -261,7 +261,28 @@ function colorPerson(person::Person)
 end
 using Makie
 scene = Scene()
-currentPeople = ps[1000][2];
-scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
+currentPeople = ps[1][2];
+# scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
+# Makie.save("m1.png", scene)
+##
+diffEvents = Vector{Float64}()
+for (d1, d2) in zip(ps, @view ps[2:end])
+    global maxDiffEvents
+    push!(diffEvents, d2[1] - d1[1])
+end
+@labeled maximum(diffEvents)
+@labeled mean(diffEvents)
+@labeled cov(diffEvents)
+lines(2:length(ps), diffEvents, color=:blue)
+##
+scene = Scene()
+scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]);
+
+record(scene, "test.webm"; framerate=30) do io
+    for (d1, d2) in zip(ps, @view ps[2:end])
+        scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
+        recordframe!(io) # record a new frame
+    end
+end
 ##
 end
