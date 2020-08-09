@@ -276,13 +276,31 @@ end
 lines(2:length(ps), diffEvents, color=:blue)
 ##
 scene = Scene()
-scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]);
-
-record(scene, "test.webm"; framerate=30) do io
+display(scatter!([Point(person.pos) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
+function animate1(io=nothing, framerate=30)
+    lastTime = 0
     for (d1, d2) in zip(ps, @view ps[2:end])
-        scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
-        recordframe!(io) # record a new frame
+    # sleep(1 / 1000)
+        if io == nothing
+            scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
+            sleep((d2[1] - d1[1]) / 10)
+        else
+            frames = floor(Int, ((d2[1] - lastTime) / 10) / (1 / framerate))
+            if frames > 0
+                scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
+                for i in 1:frames
+                    recordframe!(io)
+                end
+                lastTime = d2[1]
+            end
+        end
     end
+end
+##
+framerate = 120
+record(scene, "test.webm"; framerate=framerate) do io
+    animate1(io, framerate)
+    println("Saved animation!")
 end
 ##
 end
