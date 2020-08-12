@@ -24,3 +24,11 @@ end
 macro d(body)
     :(more(Core.@doc($(esc(body)))))
 end
+##
+module tmp
+begin
+    println(55)
+    @error "hi"
+    println(56)
+end
+end

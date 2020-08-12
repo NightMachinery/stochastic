@@ -7,10 +7,25 @@ include("../common/event.jl")
 #
 # We are assuming the unit time is one day.
 
+sceneSize = (2100, 1500)
 @enum InfectionStatus Healthy = 1 Recovered RecoveredRemission Sick Dead 
 MLStyle.is_enum(::InfectionStatus) = true
 # tell the compiler how to match it
 MLStyle.pattern_uncall(e::InfectionStatus, _, _, _, _) = literal(e)
+function colorPerson(person::Person)
+    colorStatus(getStatus(person))
+end
+function colorStatus(status::InfectionStatus)
+    # we'll need to disable the border to be able to hide points by using α=0
+    α = 0.6
+    @match status  begin
+        Sick => RGBAf0(1, 0, 0, α) # :red    
+        Healthy => RGBAf0(0, 1, 0, α) # :green
+        Dead => RGBAf0(0, 0, 0, α) # :black
+        RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
+        Recovered => RGBAf0(0, 1, 1, α) # :blue
+    end
+end
 ###
 # daySegments = 864 # 86400 seconds in a day
 # exp2geomP(λ) = λ/daySegments
@@ -218,8 +233,8 @@ function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sle
     people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
 
     if visualize
-        scene = Scene()
-        display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]))
+        scene = Scene(resolution=sceneSize)
+        display(scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
     end
 
     allData = []
@@ -235,12 +250,12 @@ function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sle
         cEvent.callback(cEvent.time)
         # push!(allData, (cEvent.time, deepcopy(people)))
     end
-    println("Simulation ended at $(cEvent.time)")
+    println("Simulation ended at day $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
     # people
     allData
 end
-
+bello()
 ##
 begin
     let λ = 0.1, rd = Exponential(inv(λ))
@@ -253,34 +268,20 @@ begin
             end
         end
     end
-    serverVerbosity = 0 ; @elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3);
+    serverVerbosity = 0 ; println("Took $(@elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3))")
 # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
 # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
 # storing allData 10x slowed to ~10
 # using observables 10x slowed to ~75
+# abandoning observables (+makie scene): 0.973560406
 end
+bello()
 # @assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
 ##
-function colorPerson(person::Person)
-    colorStatus(getStatus(person))
-end
-function colorStatus(status::InfectionStatus)
-    # we'll need to disable the border to be able to hide points by using α=0
-    α = 0.6
-    @match status  begin
-        Sick => RGBAf0(1, 0, 0, α) # :red    
-        Healthy => RGBAf0(0, 1, 0, α) # :green
-        Dead => RGBAf0(0, 0, 0, α) # :black
-        RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
-        Recovered => RGBAf0(0, 1, 1, α) # :blue
-    end
-end
-# scene = Scene()
+scene = Scene(resolution=sceneSize)
 currentPeople = ps[1][2];
 # scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
 # Makie.save("m1.png", scene)
-##
-scene = Scene()
 display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
 function animate1(io=nothing, framerate=30)
     lastTime = 0
@@ -301,11 +302,13 @@ function animate1(io=nothing, framerate=30)
         end
     end
 end
+bello()
 ##
 framerate = 120
 @time record(scene, "test.mkv"; framerate=framerate) do io
     animate1(io, framerate)
     println("Saved animation!")
+    bellj()
 end
 ##
 diffEvents = Vector{Float64}()

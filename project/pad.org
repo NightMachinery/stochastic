@@ -1,3 +1,5 @@
 #+TITLE: Pad
 
 We can create transformer functions that create a global map of all places, and place people inside a single scene. This might be simpler than stacking scenes using `hbox` and `vbox`. It might also be visually more pleasing.
+
+We can save events with the format =duration since last event\nevent= and then read this and sonify it using Overtone. The event part can be a simple Overtone command that gets evaled.
