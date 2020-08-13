@@ -1,7 +1,9 @@
 module SIR
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random, Distributions, DataStructures, Lazy, MLStyle, Makie
+using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs
+using Gadfly, Colors
+import Cairo, Fontconfig
 using MLStyle.AbstractPatterns: literal
 include("../common/event.jl")
 #
@@ -12,20 +14,6 @@ sceneSize = (2100, 1500)
 MLStyle.is_enum(::InfectionStatus) = true
 # tell the compiler how to match it
 MLStyle.pattern_uncall(e::InfectionStatus, _, _, _, _) = literal(e)
-function colorPerson(person::Person)
-    colorStatus(getStatus(person))
-end
-function colorStatus(status::InfectionStatus)
-    # we'll need to disable the border to be able to hide points by using α=0
-    α = 0.6
-    @match status  begin
-        Sick => RGBAf0(1, 0, 0, α) # :red    
-        Healthy => RGBAf0(0, 1, 0, α) # :green
-        Dead => RGBAf0(0, 0, 0, α) # :black
-        RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
-        Recovered => RGBAf0(0, 1, 1, α) # :blue
-    end
-end
 ###
 # daySegments = 864 # 86400 seconds in a day
 # exp2geomP(λ) = λ/daySegments
@@ -82,7 +70,29 @@ mutable struct Person # <: AbstractAgent
         me
     end
 end
-
+###
+function colorPerson(person::Person)
+    colorStatus(getStatus(person))
+end
+function colorStatus(status::InfectionStatus)
+    # we'll need to disable the border to be able to hide points by using α=0
+    # α = 0.6 # we need to use alpha=vector in Gadfly:
+    # `plot(x=[1,2],y=[4,5], color=[RGBA(1,1,1,1), RGB(1,0,1)], alpha=[1,0.1])`
+    @match status  begin
+        Sick => RGB(1, 0, 0) # :red    
+        Healthy => RGB(0, 1, 0) # :green
+        Dead => RGB(0, 0, 0) # :black
+        RecoveredRemission => RGB(1, 1, 0) # :yellow
+        Recovered => RGB(0, 1, 1) # :blue
+    end
+    # @match status  begin
+    #     Sick => RGBAf0(1, 0, 0, α) # :red    
+    #     Healthy => RGBAf0(0, 1, 0, α) # :green
+    #     Dead => RGBAf0(0, 0, 0, α) # :black
+    #     RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
+    #     Recovered => RGBAf0(0, 1, 1, α) # :blue
+    # end
+end
 function defaultNextConclusion()
     rand(Uniform(4, 15))
 end
@@ -152,18 +162,67 @@ macro injectModel(name)
         end
     end
 end
-function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sleep=true)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30)
     @injectModel nextSickness
+    intervalVisualize::Bool = visualize
+    visualize = false
+    if intervalVisualize
+        xs = []
+        ys = []
+        cs = []
+    #     scene = Scene(resolution=sceneSize)
+    end
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
+    runID = string(uuid4())
+    plotdir = "$(pwd())/makiePlots/$(runID)"
+    @labeled plotdir
+    mkpath(plotdir)
+    frameCounter = 0
+    lastTime = 0
+    function makieSave(tNow)
+        frames = floor(Int, ((tNow - lastTime) / 10) / (1 / framerate))
+        if frames <= 0
+            return
+        end
+        lastTime = tNow
 
+        frameCounter += 1
+        dest = "$plotdir/$(@sprintf "%06d" frameCounter).png"
+        plt = plot(x=xs, y=ys, color=cs)
+        plt |> PNG(dest, 26cm, 18cm, dpi=150)
+        for i in 2:frames
+            frameCounter += 1
+            destCopy = "$plotdir/$(@sprintf "%06d" frameCounter).png"
+            
+            cmd = `cp  $dest $destCopy`
+            println(string(cmd))
+            run(cmd, wait=false)
+    
+            # cmd = `gtouch --date '01/23/2000 12:'$(event2aniTime(tNow)) $dest`
+            # println(string(cmd))
+            # run(cmd, wait=false)
+        end
+
+        # error("hi")
+    end
+    function event2aniTime(tNow)
+        # With the %f format specifier, the "2" is treated as the minimum number of characters altogether, not the number of digits before the decimal dot. 
+        mins = floor(tNow / 60)
+        secs = tNow - 60 * mins
+        @sprintf "%02d:%012.9f" mins secs 
+    end
     function setStatus(tNow, person::Person, status::InfectionStatus)
         # person.status[] = status
         person.status = status
         @alertStatus
         recalcSickness(tNow, person.currentPlace)
+        if visualize
+            cs[person.id] = colorPerson(person)
+            makieSave(tNow)
+        end 
     end
     function setPos(tNow, person::Person, pos)
         # person.pos[] = pos
@@ -232,9 +291,13 @@ function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sle
     end
     people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
 
-    if visualize
-        scene = Scene(resolution=sceneSize)
-        display(scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
+    if intervalVisualize
+        # (scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
+        xs = [person.pos[1] for person in people]
+        ys = [person.pos[2] for person in people]
+        cs = [colorPerson(person) for person in people]
+        visualize = true
+        makieSave(0)
     end
 
     allData = []
@@ -255,7 +318,12 @@ function runModel(; model::CoronaModel, n=10, simDuration=2, visualize=true, sle
     # people
     allData
 end
-bello()
+if ! @isdefined firstLoad
+    bellj()
+else
+    bello()
+end
+firstLoad = true
 ##
 begin
     let λ = 0.1, rd = Exponential(inv(λ))
@@ -268,15 +336,19 @@ begin
             end
         end
     end
-    serverVerbosity = 0 ; println("Took $(@elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3))")
+end
+serverVerbosity = 0
+function model1(visualize=true)
+    println("Took $(@elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3, visualize=visualize))")
 # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
 # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
 # storing allData 10x slowed to ~10
 # using observables 10x slowed to ~75
 # abandoning observables (+makie scene): 0.973560406
-end
-bello()
+
+    visualize ? bellj() : bello()
 # @assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
+end
 ##
 scene = Scene(resolution=sceneSize)
 currentPeople = ps[1][2];
