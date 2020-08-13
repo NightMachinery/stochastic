@@ -199,6 +199,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             
             cmd = `cp  $dest $destCopy`
             println(string(cmd))
+            # flush(STDOUT)
             run(cmd, wait=false)
     
             # cmd = `gtouch --date '01/23/2000 12:'$(event2aniTime(tNow)) $dest`
