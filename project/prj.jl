@@ -1,9 +1,13 @@
 module SIR
+using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs
-using Gadfly, Colors
-import Cairo, Fontconfig
+using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs, IterTools
+# using Gadfly
+# import Cairo, Fontconfig
+using Colors
+using ForceImport
+@force using Luxor
 using MLStyle.AbstractPatterns: literal
 include("../common/event.jl")
 #
@@ -25,7 +29,7 @@ mutable struct Place{T}
     width::Float64
     height::Float64
     people::Set{T}
-    function Place(; name="", width, height, people=Set())
+    function Place(; name, width, height, people=Set())
         new{Person}(name, width, height, people)
     end
 end
@@ -49,7 +53,7 @@ end
 
 mutable struct Person # <: AbstractAgent
     id::Int
-    pos::NTuple{2,Float64} # Node{NTuple{2,Float64}}
+    pos::NamedTuple{(:x, :y),Tuple{Float64,Float64}} # NTuple{2,Float64} # Node{NTuple{2,Float64}}
     # vel::NTuple{2, Float64}
 
     status::InfectionStatus # Node{InfectionStatus}
@@ -58,7 +62,7 @@ mutable struct Person # <: AbstractAgent
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
     # removableEvents::Array{Int}
-    function Person(; id=-1, pos=(0., 0.), status=Healthy, currentPlace, workplace=nothing, isIsolated=false, 
+    function Person(; id=-1, pos=(x = 0., y = 0.), status=Healthy, currentPlace, workplace=nothing, isIsolated=false, 
         sickEvent=nothing
         # ,removableEvents=[]
         )
@@ -113,28 +117,28 @@ end
 mutable struct CoronaModel{F1,F2,F3,F4}
     centralPlace::Place
     marketplaces::Array{Marketplace}
+    workplaces::Array{Workplace}
     smallGridMode::Bool
-    # Workplaces::Workplace
     pq::MutableBinaryMinHeap{SEvent}
     nextConclusion::F1
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
-function CoronaModel(; centralPlace=Place(; width=100, height=70),
-    marketplaces=[], smallGridMode=false, nextSickness::F4,
+function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=500),
+    marketplaces=[], workplaces=[], smallGridMode=false, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
     hasDied::F2=defaultHasDiedλ(0.9),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -179,9 +183,23 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     runID = string(uuid4())
     plotdir = "$(pwd())/makiePlots/$(runID)"
     @labeled plotdir
-    mkpath(plotdir)
     frameCounter = 0
     lastTime = 0
+    function luxorSave(place::Place, dest)
+        padTop = 16
+        scaleFactor = 3
+        Drawing(place.width * scaleFactor, (place.height + padTop) * scaleFactor, dest)
+        scale(scaleFactor)
+        background("white")
+        sethue("black")
+        text(place.name, 10, padTop - 6)
+        translate(0, padTop)
+        for person::Person in place.people
+            sethue(colorPerson(person))
+            circle(person.pos.x, person.pos.y, 1.5, :fill)
+        end
+        finish()
+    end
     function makieSave(tNow)
         frames = floor(Int, ((tNow - lastTime) / 10) / (1 / framerate))
         if frames <= 0
@@ -190,23 +208,27 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         lastTime = tNow
 
         frameCounter += 1
-        dest = "$plotdir/$(@sprintf "%06d" frameCounter).png"
-        plt = plot(x=xs, y=ys, color=cs)
-        plt |> PNG(dest, 26cm, 18cm, dpi=150)
-        for i in 2:frames
-            frameCounter += 1
-            destCopy = "$plotdir/$(@sprintf "%06d" frameCounter).png"
+        for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
+            placedir = "$plotdir/$(place.name)"
+            mkpath(placedir)
+            dest = "$placedir/$(@sprintf "%06d" frameCounter).png"
+            # plt = plot(x=xs, y=ys, color=cs)
+            # plt |> PNG(dest, 26cm, 18cm, dpi=150)
+            luxorSave(place, dest)
+            for i in 2:frames
+                frameCounter += 1
+                destCopy = "$placedir/$(@sprintf "%06d" frameCounter).png"
             
-            cmd = `cp  $dest $destCopy`
-            println(string(cmd))
-            # flush(STDOUT)
-            run(cmd, wait=false)
+                cmd = `cp  $dest $destCopy`
+                println(string(cmd))
+                # flush(STDOUT)
+                run(cmd, wait=false)
     
-            # cmd = `gtouch --date '01/23/2000 12:'$(event2aniTime(tNow)) $dest`
-            # println(string(cmd))
-            # run(cmd, wait=false)
+                # cmd = `gtouch --date '01/23/2000 12:'$(event2aniTime(tNow)) $dest`
+                # println(string(cmd))
+                # run(cmd, wait=false)
+            end
         end
-
         # error("hi")
     end
     function event2aniTime(tNow)
@@ -231,7 +253,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         # TODO2 react to pos change
     end
     function randomizePos(tNow, person::Person)
-        setPos(tNow, person, (rand(Uniform(0, getPlace(person).width)), rand(Uniform(0, getPlace(person).height))))
+        setPos(tNow, person, (x = rand(Uniform(0, getPlace(person).width)), y = rand(Uniform(0, getPlace(person).height))))
         return person
     end
     # function cleanupEvents(person::Person)
@@ -319,14 +341,9 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     # people
     allData
 end
-if ! @isdefined firstLoad
-    bellj()
-else
-    bello()
-end
-firstLoad = true
+    firstbell()
 ##
-begin
+    begin
     let λ = 0.1, rd = Exponential(inv(λ))
         global nextSicknessExp
         function nextSicknessExp(model::CoronaModel, person::Person)::Float64
@@ -338,8 +355,8 @@ begin
         end
     end
 end
-serverVerbosity = 0
-function model1(visualize=true)
+    serverVerbosity = 0
+    function model1(visualize=true)
     println("Took $(@elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3, visualize=visualize))")
 # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
 # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
@@ -347,16 +364,16 @@ function model1(visualize=true)
 # using observables 10x slowed to ~75
 # abandoning observables (+makie scene): 0.973560406
 
-    visualize ? bellj() : bello()
+    visualize ? bello() : bello()
 # @assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
 end
 ##
-scene = Scene(resolution=sceneSize)
-currentPeople = ps[1][2];
+    scene = Scene(resolution=sceneSize)
+    currentPeople = ps[1][2];
 # scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
 # Makie.save("m1.png", scene)
-display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
-function animate1(io=nothing, framerate=30)
+    display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
+    function animate1(io=nothing, framerate=30)
     lastTime = 0
     for (d1, d2) in zip(ps, @view ps[2:end])
     # sleep(1 / 1000)
@@ -375,23 +392,23 @@ function animate1(io=nothing, framerate=30)
         end
     end
 end
-bello()
+    bello()
 ##
-framerate = 120
-@time record(scene, "test.mkv"; framerate=framerate) do io
+    framerate = 120
+    @time record(scene, "test.mkv"; framerate=framerate) do io
     animate1(io, framerate)
     println("Saved animation!")
     bellj()
 end
 ##
-diffEvents = Vector{Float64}()
-for (d1, d2) in zip(ps, @view ps[2:end])
+    diffEvents = Vector{Float64}()
+    for (d1, d2) in zip(ps, @view ps[2:end])
     global maxDiffEvents
     push!(diffEvents, d2[1] - d1[1])
 end
-@labeled maximum(diffEvents)
-@labeled mean(diffEvents)
-@labeled cov(diffEvents)
-lines(2:length(ps), diffEvents, color=:blue)
+    @labeled maximum(diffEvents)
+    @labeled mean(diffEvents)
+    @labeled cov(diffEvents)
+    lines(2:length(ps), diffEvents, color=:blue)
 ##
 end

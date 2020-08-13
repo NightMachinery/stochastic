@@ -32,3 +32,77 @@ begin
     println(56)
 end
 end
+##
+using ForceImport
+@force using Luxor
+mkpath("luxor/tmp/")
+Drawing(600, 400, "luxor/tmp/julia-logos.png")
+origin()
+background("white")
+for θ in range(0, step=π / 8, length=16)
+    gsave()
+    scale(0.25)
+    rotate(θ)
+    translate(250, 0)
+    randomhue()
+    julialogo(action=:fill, color=false)
+    grestore()
+end
+
+gsave()
+scale(0.3)
+juliacircles()
+grestore()
+
+translate(200, -150)
+scale(0.3)
+julialogo()
+finish()
+preview()
+##
+using Base.Iterators, ColorSchemes
+r = 500
+Drawing(r * 2,r * 2)
+background("white")
+origin()
+function triangle(points, degree)
+    sethue(cols[degree])
+    poly(points, :fill)
+end
+
+function sierpinski(points, degree)
+    triangle(points, degree)
+    if degree > 1
+        p1, p2, p3 = points
+        sierpinski([p1, midpoint(p1, p2),
+                        midpoint(p1, p3)], degree - 1)
+        sierpinski([p2, midpoint(p1, p2),
+                        midpoint(p2, p3)], degree - 1)
+        sierpinski([p3, midpoint(p3, p2),
+                        midpoint(p1, p3)], degree - 1)
+    end
+end
+
+depth = 13 # 12 is ok, 20 is right out (on my computer, at least)
+cols = [get(ColorSchemes.diverging_bky_60_10_c30_n256, i) for i in range(0, stop=1, length=depth + 1) ] # distinguishable_colors(depth+2) # from Colors.jl
+function draw(n)
+    sethue(cols[end])
+    circle(O, r, :fill)
+    circle(O, r, :clip)
+    points = ngon(O, r * 2, 3, -π / 2, vertices=true)
+    sierpinski(points, n)
+end
+
+draw(depth)
+
+finish()
+preview()
+##
+Drawing(300,300)
+# origin()
+background("red")
+sethue("green")
+text("hello world", 10,50)
+circle(50,100,1, :fill)
+finish()
+preview()
