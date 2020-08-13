@@ -362,7 +362,7 @@ function plotTimeseries(dt::DataFrame, dest)
         Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...),
         Theme(
             key_label_font_size=30pt,
-            key_title_font_size=35pt,
+            key_title_font_size=37pt,
             major_label_font_size=29pt,
             minor_label_font_size=27pt,
             line_width=2pt,
