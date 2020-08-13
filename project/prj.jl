@@ -78,6 +78,10 @@ end
 function colorPerson(person::Person)
     colorStatus(getStatus(person))
 end
+function statusFromString_(status::String)
+    eval(Meta.parse(status))
+end
+@defonce const statusFromString = memoize(statusFromString_)
 function colorStatus(status::InfectionStatus)
     # we'll need to disable the border to be able to hide points by using α=0
     # α = 0.6 # we need to use alpha=vector in Gadfly:
@@ -86,7 +90,7 @@ function colorStatus(status::InfectionStatus)
         Sick => RGB(1, 0, 0) # :red    
         Healthy => RGB(0, 1, 0) # :green
         Dead => RGB(0, 0, 0) # :black
-        RecoveredRemission => RGB(1, 1, 0) # :yellow
+        RecoveredRemission => RGB(1, 0.7, 0) # RGB(1, 1, 0) # :yellow
         Recovered => RGB(0, 1, 1) # :blue
     end
     # @match status  begin
@@ -119,26 +123,27 @@ mutable struct CoronaModel{F1,F2,F3,F4}
     marketplaces::Array{Marketplace}
     workplaces::Array{Workplace}
     smallGridMode::Bool
+    μ::Float64
     pq::MutableBinaryMinHeap{SEvent}
     nextConclusion::F1
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
 function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=500),
-    marketplaces=[], workplaces=[], smallGridMode=false, nextSickness::F4,
+    marketplaces=[], workplaces=[], smallGridMode=false,μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
     hasDied::F2=defaultHasDiedλ(0.9),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -155,6 +160,12 @@ end
 function getPlace(person::Person)
     person.currentPlace# []
 end
+function insertPeople(dt::DataFrame, t, people)
+    for status in instances(InfectionStatus)
+        push!(dt, (t, count(people) do p p.status == status end, string(status)))    
+    end
+    dt
+end
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
     sv1("$tNow: Person #$(person.id) is $(getStatus(person))")
@@ -168,24 +179,26 @@ macro injectModel(name)
 end
 function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30)
     @injectModel nextSickness
-    intervalVisualize::Bool = visualize
+    internalVisualize::Bool = visualize
     visualize = false
-    if intervalVisualize
-        xs = []
-        ys = []
-        cs = []
-    #     scene = Scene(resolution=sceneSize)
-    end
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
     runID = string(uuid4())
     plotdir = "$(pwd())/makiePlots/$(runID)"
-    @labeled plotdir
+    if internalVisualize
+        mkpath(plotdir)
+        @labeled plotdir
+        # xs = []
+        # ys = []
+        # cs = []
+        #     scene = Scene(resolution=sceneSize)
+    end
     frameCounter = 0
     lastTime = 0
     function luxorSave(place::Place, dest)
+        # be sure to output images with even width and height, or encoding them will need padding
         padTop = 16
         scaleFactor = 3
         Drawing(place.width * scaleFactor, (place.height + padTop) * scaleFactor, dest)
@@ -196,7 +209,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         translate(0, padTop)
         for person::Person in place.people
             sethue(colorPerson(person))
-            circle(person.pos.x, person.pos.y, 1.5, :fill)
+            circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
         end
         finish()
     end
@@ -212,8 +225,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             placedir = "$plotdir/$(place.name)"
             mkpath(placedir)
             dest = "$placedir/$(@sprintf "%06d" frameCounter).png"
-            # plt = plot(x=xs, y=ys, color=cs)
-            # plt |> PNG(dest, 26cm, 18cm, dpi=150)
             luxorSave(place, dest)
             for i in 2:frames
                 frameCounter += 1
@@ -223,12 +234,9 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
                 println(string(cmd))
                 # flush(STDOUT)
                 run(cmd, wait=false)
-    
-                # cmd = `gtouch --date '01/23/2000 12:'$(event2aniTime(tNow)) $dest`
-                # println(string(cmd))
-                # run(cmd, wait=false)
             end
         end
+
         # error("hi")
     end
     function event2aniTime(tNow)
@@ -314,16 +322,18 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
     people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
 
-    if intervalVisualize
+    dt::Union{DataFrame,Nothing} = nothing
+    if internalVisualize
         # (scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
         xs = [person.pos[1] for person in people]
         ys = [person.pos[2] for person in people]
         cs = [colorPerson(person) for person in people]
         visualize = true
         makieSave(0)
+
+        dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
     end
 
-    allData = []
     cEvent = nothing
     while ! (isempty(model.pq))
         cEvent, h = top_with_handle(model.pq)
@@ -334,39 +344,91 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
         sv1("-> receiving event at $(cEvent.time)")
         cEvent.callback(cEvent.time)
-        # push!(allData, (cEvent.time, deepcopy(people)))
+        if visualize
+            insertPeople(dt, cEvent.time, people)
+        end
     end
     println("Simulation ended at day $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
-    # people
-    allData
+    if visualize
+        plotTimeseries(dt, "$plotdir/timeseries.png")
+    end
+    people, dt
 end
-    firstbell()
+function plotTimeseries(dt::DataFrame, dest)
+    mkpath(dirname(dest))
+    plot(dt, x=:Time, y=:Number, color=:Status,
+        Geom.line(),
+        Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...),
+        Theme(
+            key_label_font_size=30pt,
+            key_title_font_size=35pt,
+            major_label_font_size=29pt,
+            minor_label_font_size=27pt,
+            line_width=2pt,
+            background_color="white",
+
+            # alphas = [1],
+        )
+    ) |> PNG(dest, 26cm, 18cm, dpi=150)
+    bello()
+end
+
+firstbell()
 ##
-    begin
-    let λ = 0.1, rd = Exponential(inv(λ))
-        global nextSicknessExp
-        function nextSicknessExp(model::CoronaModel, person::Person)::Float64
-            if getStatus(person) == Healthy
-                rand(rd)
-            else
-                -1.0
-            end
-        end
+function nextSicknessExp(model::CoronaModel, person::Person)::Float64
+    if getStatus(person) == Healthy
+        rand(Exponential(inv(model.μ)))
+    else
+        -1.0
     end
 end
-    serverVerbosity = 0
-    function model1(visualize=true)
-    println("Took $(@elapsed ps = runModel(; model=CoronaModel(; nextSickness=nextSicknessExp), simDuration=10^3, n=10^3, visualize=visualize))")
-# 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
-# Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
-# storing allData 10x slowed to ~10
-# using observables 10x slowed to ~75
-# abandoning observables (+makie scene): 0.973560406
+serverVerbosity = 0
+function execModel(; visualize=true, n=10^3, model, simDuration=10^3)
+    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize)))")
+    # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
+    # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
+    # storing allData 10x slowed to ~10
+    # using observables 10x slowed to ~75
+    # abandoning observables (+makie scene): 0.973560406
 
     visualize ? bello() : bello()
-# @assert sum(1 for p in ps[end][2] if (getStatus(p) == Recovered || getStatus(p) == Dead)) == 10^3
+    @assert sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead)) == n "Total recovered and dead people don't match total people."
+
+    global lastPeople, lastDt = ps, dt
+    # return ps, dt
+    nothing
 end
+model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
+##
+ps1 = model1()
+##
+function insertPeople(dt, t, people)
+    for status in instances(InfectionStatus)
+        push!(dt, (t, count(people) do p p.status == status end, string(status)))    
+    end
+    dt
+end
+dt = DataFrame(t=Float64[], n=Int64[], status=String[])
+insertPeople(dt,2.2,ps1)
+## 
+# dt = DataFrame(t=1,
+#     n=count(ps1) do p p.status == Healthy end,
+#     status=string(Healthy)
+# )
+
+dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
+insertPeople(dt,2.2,ps1)
+insertPeople(dt,3.0,ps1)
+plot(dt, x=:Time, y=:Number, color=:Status,
+    Geom.line(),
+    Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...)
+)
+# plot(dt, x=:t, y=:n, color=:status,
+#     Scale.x_discrete(levels=[2.2,3.0]),    
+#     Stat.dodge(position=:stack), Geom.bar(position=:stack),
+#     Guide.manual_color_key("Legend", collect(string.(instances(InfectionStatus))), [colorStatus(status) for status in instances(InfectionStatus)])
+# )
 ##
     scene = Scene(resolution=sceneSize)
     currentPeople = ps[1][2];

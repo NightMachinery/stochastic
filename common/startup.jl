@@ -30,6 +30,8 @@ end
 vscI() = pushdisplay(VSCodeServer.InlineDisplay())
 vscINo() = popdisplay()
 ##
+ensureDir(dest) = mkpath(dirname(dest))
+##
 
 more(content) = more(repr("text/plain", content))
 # using Markdown
