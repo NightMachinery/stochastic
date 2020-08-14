@@ -3,8 +3,8 @@ using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
 using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs, IterTools
-# using Gadfly
-# import Cairo, Fontconfig
+using Gadfly
+import Cairo, Fontconfig
 using Colors
 using ForceImport
 @force using Luxor
@@ -28,9 +28,10 @@ mutable struct Place{T}
     name::String
     width::Float64
     height::Float64
+    plotPos::NamedTuple{(:x, :y),Tuple{Float64,Float64}}
     people::Set{T}
-    function Place(; name, width, height, people=Set())
-        new{Person}(name, width, height, people)
+    function Place(; name, width, height, people=Set(), plotPos)
+        new{Person}(name, width, height, plotPos, people)
     end
 end
 mutable struct Marketplace
@@ -135,11 +136,11 @@ mutable struct CoronaModel{F1,F2,F3,F4}
         me
     end
 end
-function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=500),
+function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
     marketplaces=[], workplaces=[], smallGridMode=false,μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
-    hasDied::F2=defaultHasDiedλ(0.9),
+    hasDied::F2=defaultHasDiedλ(0.8),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
@@ -197,45 +198,61 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
     frameCounter = 0
     lastTime = 0
-    function luxorSave(place::Place, dest)
+    function drawPlace(place::Place)
         # be sure to output images with even width and height, or encoding them will need padding
+        old_matrix = getmatrix()
         padTop = 16
-        scaleFactor = 3
-        Drawing(place.width * scaleFactor, (place.height + padTop) * scaleFactor, dest)
-        scale(scaleFactor)
-        background("white")
+
+        translate(place.plotPos.x, place.plotPos.y)
         sethue("black")
         text(place.name, 10, padTop - 6)
         translate(0, padTop)
+        rect(0, 0, place.width, place.height, :stroke)
+        rect(0, 0, place.width, place.height, :clip)
         for person::Person in place.people
             sethue(colorPerson(person))
             circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
         end
-        finish()
+        clipreset()
+        setmatrix(old_matrix)
     end
     function makieSave(tNow)
         frames = floor(Int, ((tNow - lastTime) / 10) / (1 / framerate))
+        if frameCounter == 0
+            frames = 1 # because we need to copy the previous keyframe, we need a bootstrap method
+        end
         if frames <= 0
             return
         end
         lastTime = tNow
 
-        frameCounter += 1
-        for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
-            placedir = "$plotdir/$(place.name)"
-            mkpath(placedir)
-            dest = "$placedir/$(@sprintf "%06d" frameCounter).png"
-            luxorSave(place, dest)
-            for i in 2:frames
-                frameCounter += 1
-                destCopy = "$placedir/$(@sprintf "%06d" frameCounter).png"
-            
-                cmd = `cp  $dest $destCopy`
-                println(string(cmd))
-                # flush(STDOUT)
-                run(cmd, wait=false)
-            end
+        # use previous keyframe
+        dest = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
+        mkpath(dirname(dest))
+        for i in 2:frames
+            frameCounter += 1
+            destCopy = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
+        
+            cmd = `cp  $dest $destCopy`
+            # println(string(cmd))
+            # flush(STDOUT)
+            run(cmd, wait=false)
         end
+
+        frameCounter += 1
+        dest = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
+ 
+        scaleFactor = 3
+        Drawing(600 * scaleFactor, 600 * scaleFactor, dest) # HARDCODED
+        scale(scaleFactor)
+        background("white")
+
+        for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
+            drawPlace(place)
+        end
+
+        finish()
+        println("Key frame saved: $dest")
 
         # error("hi")
     end
@@ -376,6 +393,7 @@ end
 
 firstbell()
 ##
+serverVerbosity = 0
 function nextSicknessExp(model::CoronaModel, person::Person)::Float64
     if getStatus(person) == Healthy
         rand(Exponential(inv(model.μ)))
@@ -383,7 +401,6 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-serverVerbosity = 0
 function execModel(; visualize=true, n=10^3, model, simDuration=10^3)
     println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize)))")
     # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
@@ -400,6 +417,17 @@ function execModel(; visualize=true, n=10^3, model, simDuration=10^3)
     nothing
 end
 model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
+#
+function nsP1_2(model::CoronaModel, person::Person)::Float64
+    @match getStatus(person) begin
+        Recovered ||
+        Healthy =>
+        rand(Exponential(inv(model.μ)))
+        _ =>
+        -1.0
+    end
+end
+m1_2(μ=0.1 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; μ,nextSickness=nsP1_2))
 ##
 ps1 = model1()
 ##
@@ -460,7 +488,6 @@ end
     @time record(scene, "test.mkv"; framerate=framerate) do io
     animate1(io, framerate)
     println("Saved animation!")
-    bellj()
 end
 ##
     diffEvents = Vector{Float64}()
