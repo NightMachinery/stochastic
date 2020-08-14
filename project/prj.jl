@@ -120,6 +120,7 @@ function defaultNextCompleteRecovery()
 end
 
 mutable struct CoronaModel{F1,F2,F3,F4}
+    name::String
     centralPlace::Place
     marketplaces::Array{Marketplace}
     workplaces::Array{Workplace}
@@ -130,13 +131,13 @@ mutable struct CoronaModel{F1,F2,F3,F4}
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4}(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
-function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
+function CoronaModel(; name="untitled", centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
     marketplaces=[], workplaces=[], smallGridMode=false,μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
@@ -144,7 +145,7 @@ function CoronaModel(; centralPlace=Place(; name="Central", width=500, height=50
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3,F4}(centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -186,7 +187,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = string(uuid4())
+    runID = "$(model.name) - $(uuid4())"
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -320,7 +321,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
     function genSickEvent(tNow, person::Person)
         tillNext = nextSickness(person)
-        if tillNext >= 0
+        if Inf > tillNext >= 0
             sickEvent = pushEvent(tNow + tillNext) do tNow
                 infect(tNow, person)
             end
@@ -401,8 +402,8 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-function execModel(; visualize=true, n=10^3, model, simDuration=10^3)
-    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize)))")
+function execModel(; visualize=true, n=10^3, model, simDuration=10^4)
+    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize))")
     # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
     # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
     # storing allData 10x slowed to ~10
@@ -428,6 +429,37 @@ function nsP1_2(model::CoronaModel, person::Person)::Float64
     end
 end
 m1_2(μ=0.1 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; μ,nextSickness=nsP1_2))
+# Simulation ended at day 994.8028213815833
+# Took 430.67870536 (+vis)
+#
+function nsP2_g(model::CoronaModel, person::Person, infectors, infectables)::Float64
+    count_sick = count(model.centralPlace.people) do p p.status in infectors end
+    if count_sick == 0
+        return -1
+    end
+    rd = Exponential(inv(model.μ * count_sick))
+    if getStatus(person) in infectables
+        rand(rd)
+    else
+        -1.0
+    end
+end
+nsP2_1_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy,))
+nsP2_1_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy, Recovered))
+nsP2_2_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy,))
+nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy, Recovered))
+
+m2_1_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_1))
+m2_1_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
+m2_2_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
+m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
+# Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.01 - 5ae4f090-2430-4868-b8d0-8322c62e23e1/all/001218.png
+# Simulation ended at day 458.51707686527175
+# Took 528.464985147
+# Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.001 - 8bbcbc15-b331-4e3b-a153-b8082e87291f/all/000854.png
+# Simulation ended at day 323.698439247161
+# Took 451.879709406
+#
 ##
 ps1 = model1()
 ##
