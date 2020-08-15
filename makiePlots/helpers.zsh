@@ -11,3 +11,6 @@ function ani-ts() {
     tsendall "$@"
     bello
 }
+function makie-clean() {
+    rm -r ~/Base/_Code/uni/stochastic/makiePlots/**/all(/)
+}

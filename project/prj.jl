@@ -1,4 +1,4 @@
-module SIR
+# module SIR
 using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
@@ -58,7 +58,7 @@ mutable struct Person # <: AbstractAgent
     # vel::NTuple{2, Float64}
 
     status::InfectionStatus # Node{InfectionStatus}
-    currentPlace::Place # Node{Place} # Union{Place,Nothing}
+    currentPlace::Union{Place,Nothing} # Node{Place} # Union{Place,Nothing}
     workplace::Union{Workplace,Nothing}
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
@@ -180,7 +180,15 @@ macro injectModel(name)
         end
     end
 end
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing}=nothing)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing)
+    ###
+    if isa(initialPeople, Function)
+        initialPeople = initialPeople(model)
+    end
+    if ! isnothing(initialPeople)
+        n = length(initialPeople)
+    end
+    ###
     @injectModel nextSickness
     discrete_opt = model.discrete_opt # Set to 0 to get the true simulation, increase for speed
     internalVisualize::Bool = visualize
@@ -190,7 +198,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = "$(model.name), DiS=$daysInSec - $(uuid4())"
+    runID = "$(model.name), n=$n, DiS=$daysInSec - $(uuid4())"
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -354,9 +362,12 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     if isnothing(initialPeople)
         people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
     else
-        @assert length(initialPeople) == n "initialPeople should have match the supplied population number 'n'!"
+        @assert length(initialPeople) == n "initialPeople should have match the supplied population number 'n'!" # Now useless, as I set n to length of initialPeople.
         people = initialPeople
         for person in people
+            if isnothing(person.currentPlace)
+                person.currentPlace = model.centralPlace
+            end
             if person.status == Sick
                 infect(0, person)
             end
@@ -401,10 +412,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
 end
 function plotTimeseries(dt::DataFrame, dest)
     dest_dir = dirname(dest)
-    run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
-    run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
-    sleep(0.5) # to make sure things have loaded succesfully
-    run(`brishzq.zsh ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
     mkpath(dest_dir)
     plot(dt, x=:Time, y=:Number, color=:Status,
         Geom.line(),
@@ -420,6 +427,12 @@ function plotTimeseries(dt::DataFrame, dest)
             # alphas = [1],
         )
     ) |> PNG(dest, 26cm, 18cm, dpi=150)
+
+    run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
+    run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
+    sleep(1.0) # to make sure things have loaded succesfully
+    run(`brishzq.zsh ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+    
     # bella()
 end
 
@@ -433,8 +446,9 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-function execModel(; visualize=true, n=10^3, model, simDuration=300, kwargs...)
+function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
     println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...))")
+    global lastPeople, lastDt = ps, dt
     # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
     # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
     # storing allData 10x slowed to ~10
@@ -445,9 +459,8 @@ function execModel(; visualize=true, n=10^3, model, simDuration=300, kwargs...)
     if count_healthy > 0
         println("!!! There are still $count_healthy healthy people left in the simulation!")
     end
-    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == n "Total recovered and dead people don't match total people."
+    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == length(ps) "Total recovered and dead people don't match total people."
 
-    global lastPeople, lastDt = ps, dt
     # return ps, dt
     nothing
 end
@@ -514,130 +527,70 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     # end
     return res
 end
-function nsP3_g(model::CoronaModel, person::Person, infectors, infectables, f_ij=f_ij2 ; c)::Float64
-    if ! (getStatus(person) in infectables)
-        return -1
-    end
-    totalRate = 0
-    for neighbor in person.currentPlace.people
-        if ! (neighbor.status in infectors)
-            continue
-        end
-        totalRate += f_ij(model, person, neighbor, c)
-    end
-    if totalRate <= 0
-        return -1
-    end
-    # @labeled totalRate
-    rd = Exponential(inv(totalRate))
-    rand(rd)
-end
 
-# TODO
-nsP2_1_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy, Recovered))
-nsP2_2_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy,))
-nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy, Recovered))
+function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
+    function genp_grid_hgap(model::CoronaModel)
+        n = gw * gh - length(gaps)
 
-function m3_1_1(μ=1 / 10^3 ; n=10^2, discrete_opt=1.0, c=30, kwargs...)
-    nsP3_1_1(model::CoronaModel, person::Person) = nsP3_g(model, person, (Sick,), (Healthy,), f_ij2 ; c)
-    execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_1_1))
-end
-function m3_1_1_ip(μ=1 / 10^3 ; discrete_opt=1.0, c=30, kwargs...)
-    gw = 20
-    gh = 40
-    gaps = [(i, j) for i in 20:22 for j in 1:gw]
-    n = gw * gh - length(gaps)
-
-    nsP3_1_1(model::CoronaModel, person::Person) = nsP3_g(model, person, (Sick,), (Healthy,), f_ij2 ; c)
-    model = CoronaModel(; name="$(@currentFuncName)¦ n=$n, c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_1_1)
-
-    cp = model.centralPlace
-    ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
+        cp = model.centralPlace
+        ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
                     pos=(x = j * ((cp.width - 20) / gw),
                         y = i * ((cp.height - 20) / gh)),
                     status=(if i in 1:2
-        Sick
-    else
-        Healthy
-    end)
+            Sick
+        else
+            Healthy
+        end)
                 ) 
             for i in 1:gh for j in 1:gw if !((i, j) in gaps)]
-    execModel(; n, kwargs..., model, initialPeople=ip)
-end
-# TODO
-m2_1_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
-m2_2_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
-m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
-##
-ps1 = model1()
-##
-function insertPeople(dt, t, people)
-    for status in instances(InfectionStatus)
-        push!(dt, (t, count(people) do p p.status == status end, string(status)))    
     end
-    dt
+    genp_grid_hgap
 end
-dt = DataFrame(t=Float64[], n=Int64[], status=String[])
-insertPeople(dt,2.2,ps1)
-## 
-# dt = DataFrame(t=1,
-#     n=count(ps1) do p p.status == Healthy end,
-#     status=string(Healthy)
-# )
-
-dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
-insertPeople(dt,2.2,ps1)
-insertPeople(dt,3.0,ps1)
-plot(dt, x=:Time, y=:Number, color=:Status,
-    Geom.line(),
-    Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...)
-)
-# plot(dt, x=:t, y=:n, color=:status,
-#     Scale.x_discrete(levels=[2.2,3.0]),    
-#     Stat.dodge(position=:stack), Geom.bar(position=:stack),
-#     Guide.manual_color_key("Legend", collect(string.(instances(InfectionStatus))), [colorStatus(status) for status in instances(InfectionStatus)])
-# )
-##
-    scene = Scene(resolution=sceneSize)
-    currentPeople = ps[1][2];
-# scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople])
-# Makie.save("m1.png", scene)
-    display(scatter!([Point(getPos(person)) for person in currentPeople], color=[colorPerson(person) for person in currentPeople]));
-    function animate1(io=nothing, framerate=30)
-    lastTime = 0
-    for (d1, d2) in zip(ps, @view ps[2:end])
-    # sleep(1 / 1000)
-        if io == nothing
-            scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
-            sleep((d2[1] - d1[1]) / 10)
-        else
-            frames = floor(Int, ((d2[1] - lastTime) / 10) / (1 / framerate))
-            if frames > 0
-                scene.plots[end][:color] = [colorPerson(person) for person in d2[2]] 
-                for i in 1:frames
-                    recordframe!(io)
-                end
-                lastTime = d2[1]
-            end
+function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, infectors, infectables, f_ij=f_ij2, kwargs...)
+    function nsP3_g(model::CoronaModel, person::Person)::Float64
+        if ! (getStatus(person) in infectables)
+            return -1
         end
+        totalRate = 0
+        for neighbor in person.currentPlace.people
+            if ! (neighbor.status in infectors)
+                continue
+            end
+            totalRate += f_ij(model, person, neighbor, c)
+        end
+        if totalRate <= 0
+            return -1
+        end
+        # @labeled totalRate
+        rd = Exponential(inv(totalRate))
+        rand(rd)
     end
+
+    model = CoronaModel(; name="$(@currentFuncName)¦ c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_g)
+
+    execModel(; n, kwargs..., model)
 end
-    bella()
+m3_1_1(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick,), infectables=(Healthy,))
+m3_1_2(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick,), infectables=(Healthy, Recovered))
+m3_2_1(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick, RecoveredRemission), infectables=(Healthy,))
+m3_2_2(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick, RecoveredRemission), infectables=(Healthy, Recovered))
 ##
-    framerate = 120
-    @time record(scene, "test.mkv"; framerate=framerate) do io
-    animate1(io, framerate)
-    println("Saved animation!")
-end
+# The End
 ##
-    diffEvents = Vector{Float64}()
-    for (d1, d2) in zip(ps, @view ps[2:end])
-    global maxDiffEvents
-    push!(diffEvents, d2[1] - d1[1])
-end
-    @labeled maximum(diffEvents)
-    @labeled mean(diffEvents)
-    @labeled cov(diffEvents)
-    lines(2:length(ps), diffEvents, color=:blue)
+# BUG: https://github.com/julia-vscode/julia-vscode/issues/1600
+# Better workaround: Choose the module from the bottom right of vscode manually.
+# Bad workaround: Use `@force using .SIR.SIR`
+# for n in names(@__MODULE__; all=true)
+#     if Base.isidentifier(n) && n ∉ (Symbol(@__MODULE__), :eval, :include)
+#         # @labeled n 
+#         # @labeled
+#         @eval export $n
+#     end
+# end
 ##
-end
+
+##
+# end
+
+# using ForceImport
+# @force using .SIR
