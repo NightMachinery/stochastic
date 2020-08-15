@@ -432,12 +432,12 @@ function plotTimeseries(dt::DataFrame, dest)
     run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
     sleep(1.0) # to make sure things have loaded succesfully
     run(`brishzq.zsh ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
-    
+
     # bella()
 end
 
 firstbell()
-##
+## Executors
 # serverVerbosity = 0
 function nextSicknessExp(model::CoronaModel, person::Person)::Float64
     if getStatus(person) == Healthy
@@ -464,7 +464,27 @@ function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
     # return ps, dt
     nothing
 end
-###
+## Spaces
+function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
+    function genp_grid_hgap(model::CoronaModel)
+        n = gw * gh - length(gaps)
+
+        cp = model.centralPlace
+        ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
+                    pos=(x = j * ((cp.width - 20) / gw),
+                        y = i * ((cp.height - 20) / gh)),
+                    status=(if i in 1:2
+            Sick
+        else
+            Healthy
+        end)
+                ) 
+            for i in 1:gh for j in 1:gw if !((i, j) in gaps)]
+    end
+    genp_grid_hgap
+end
+gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
+## Models
 model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
 
 function nsP1_2(model::CoronaModel, person::Person)::Float64
@@ -528,24 +548,6 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     return res
 end
 
-function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
-    function genp_grid_hgap(model::CoronaModel)
-        n = gw * gh - length(gaps)
-
-        cp = model.centralPlace
-        ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
-                    pos=(x = j * ((cp.width - 20) / gw),
-                        y = i * ((cp.height - 20) / gh)),
-                    status=(if i in 1:2
-            Sick
-        else
-            Healthy
-        end)
-                ) 
-            for i in 1:gh for j in 1:gw if !((i, j) in gaps)]
-    end
-    genp_grid_hgap
-end
 function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, infectors, infectables, f_ij=f_ij2, kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
@@ -566,7 +568,7 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, infectors, infectabl
         rand(rd)
     end
 
-    model = CoronaModel(; name="$(@currentFuncName)¦ c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_g)
+    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_g)
 
     execModel(; n, kwargs..., model)
 end
