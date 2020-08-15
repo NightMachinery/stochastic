@@ -121,6 +121,7 @@ end
 
 mutable struct CoronaModel{F1,F2,F3,F4}
     name::String
+    discrete_opt::Float64
     centralPlace::Place
     marketplaces::Array{Marketplace}
     workplaces::Array{Workplace}
@@ -131,13 +132,13 @@ mutable struct CoronaModel{F1,F2,F3,F4}
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
-function CoronaModel(; name="untitled", centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
+function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
     marketplaces=[], workplaces=[], smallGridMode=false,μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
@@ -145,7 +146,7 @@ function CoronaModel(; name="untitled", centralPlace=Place(; name="Central", wid
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3,F4}(name, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -179,15 +180,17 @@ macro injectModel(name)
         end
     end
 end
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing}=nothing)
     @injectModel nextSickness
+    discrete_opt = model.discrete_opt # Set to 0 to get the true simulation, increase for speed
     internalVisualize::Bool = visualize
-    visualize = false
+    initCompleted::Bool = false
+    visualize::Bool = false
     removedEvents = BitSet()
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = "$(model.name) - $(uuid4())"
+    runID = "$(model.name), DiS=$daysInSec - $(uuid4())"
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -210,15 +213,17 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         translate(0, padTop)
         rect(0, 0, place.width, place.height, :stroke)
         rect(0, 0, place.width, place.height, :clip)
+        setopacity(0.7)
         for person::Person in place.people
             sethue(colorPerson(person))
             circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
         end
+        setopacity(1.0)
         clipreset()
         setmatrix(old_matrix)
     end
     function makieSave(tNow)
-        frames = floor(Int, ((tNow - lastTime) / 10) / (1 / framerate))
+        frames = floor(Int, ((tNow - lastTime) / daysInSec) / (1 / framerate))
         if frameCounter == 0
             frames = 1 # because we need to copy the previous keyframe, we need a bootstrap method
         end
@@ -243,7 +248,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         frameCounter += 1
         dest = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
  
-        scaleFactor = 3
         Drawing(600 * scaleFactor, 600 * scaleFactor, dest) # HARDCODED
         scale(scaleFactor)
         background("white")
@@ -266,12 +270,14 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function setStatus(tNow, person::Person, status::InfectionStatus)
         # person.status[] = status
         person.status = status
-        @alertStatus
-        recalcSickness(tNow, person.currentPlace)
-        if visualize
-            cs[person.id] = colorPerson(person)
-            makieSave(tNow)
-        end 
+        if initCompleted
+            @alertStatus
+            recalcSickness(tNow, person.currentPlace)
+            if visualize
+                # cs[person.id] = colorPerson(person)
+                makieSave(tNow)
+            end 
+        end
     end
     function setPos(tNow, person::Person, pos)
         # person.pos[] = pos
@@ -297,15 +303,22 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
     end
     function cleanupEvents(handle::Nothing) end
+    lastRecalcTime = 0
     function recalcSickness(tNow, place::Place)
+        if discrete_opt > 0
+            if ! (isempty(model.pq)) 
+                nEvent, useless = top_with_handle(model.pq) # first(model.pq)
+                if nEvent.time - lastRecalcTime < discrete_opt
+                    return # we can take the hit
+                end
+            end
+            lastRecalcTime = tNow
+        end
         for person in place.people
             cleanupEvents(person.sickEvent)
             genSickEvent(tNow, person)
         end
     end
-    # function recalcSickness(tNow, place::Node{Place})
-    #     recalcSickness(tNow, place[])
-    # end
     function infect(tNow, person::Person)
         setStatus(tNow, person, Sick)
         pushEvent(tNow + model.nextConclusion()) do tNow
@@ -338,14 +351,24 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
         return person
     end
-    people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
-
+    if isnothing(initialPeople)
+        people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
+    else
+        @assert length(initialPeople) == n "initialPeople should have match the supplied population number 'n'!"
+        people = initialPeople
+        for person in people
+            if person.status == Sick
+                infect(0, person)
+            end
+        end
+    end
+    initCompleted = true
     dt::Union{DataFrame,Nothing} = nothing
     if internalVisualize
         # (scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
-        xs = [person.pos[1] for person in people]
-        ys = [person.pos[2] for person in people]
-        cs = [colorPerson(person) for person in people]
+        # xs = [person.pos[1] for person in people]
+        # ys = [person.pos[2] for person in people]
+        # cs = [colorPerson(person) for person in people]
         visualize = true
         makieSave(0)
 
@@ -366,15 +389,23 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             insertPeople(dt, cEvent.time, people)
         end
     end
+    @assert (! isnothing(cEvent)) "Simulation has not run any events."
     println("Simulation ended at day $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
     if visualize
         plotTimeseries(dt, "$plotdir/timeseries.png")
+    else
+        bella()
     end
     people, dt
 end
 function plotTimeseries(dt::DataFrame, dest)
-    mkpath(dirname(dest))
+    dest_dir = dirname(dest)
+    run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
+    run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
+    sleep(0.5) # to make sure things have loaded succesfully
+    run(`brishzq.zsh ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+    mkpath(dest_dir)
     plot(dt, x=:Time, y=:Number, color=:Status,
         Geom.line(),
         Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...),
@@ -389,12 +420,12 @@ function plotTimeseries(dt::DataFrame, dest)
             # alphas = [1],
         )
     ) |> PNG(dest, 26cm, 18cm, dpi=150)
-    bello()
+    # bella()
 end
 
 firstbell()
 ##
-serverVerbosity = 0
+# serverVerbosity = 0
 function nextSicknessExp(model::CoronaModel, person::Person)::Float64
     if getStatus(person) == Healthy
         rand(Exponential(inv(model.μ)))
@@ -402,23 +433,27 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-function execModel(; visualize=true, n=10^3, model, simDuration=10^4)
-    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize))")
+function execModel(; visualize=true, n=10^3, model, simDuration=300, kwargs...)
+    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...))")
     # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
     # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
     # storing allData 10x slowed to ~10
     # using observables 10x slowed to ~75
     # abandoning observables (+makie scene): 0.973560406
 
-    visualize ? bello() : bello()
-    @assert sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead)) == n "Total recovered and dead people don't match total people."
+    count_healthy = count(ps) do p p.status == Healthy end
+    if count_healthy > 0
+        println("!!! There are still $count_healthy healthy people left in the simulation!")
+    end
+    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == n "Total recovered and dead people don't match total people."
 
     global lastPeople, lastDt = ps, dt
     # return ps, dt
     nothing
 end
+###
 model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
-#
+
 function nsP1_2(model::CoronaModel, person::Person)::Float64
     @match getStatus(person) begin
         Recovered ||
@@ -431,18 +466,17 @@ end
 m1_2(μ=0.1 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; μ,nextSickness=nsP1_2))
 # Simulation ended at day 994.8028213815833
 # Took 430.67870536 (+vis)
-#
+###
 function nsP2_g(model::CoronaModel, person::Person, infectors, infectables)::Float64
+    if ! (getStatus(person) in infectables)
+        return -1
+    end
     count_sick = count(model.centralPlace.people) do p p.status in infectors end
     if count_sick == 0
         return -1
     end
     rd = Exponential(inv(model.μ * count_sick))
-    if getStatus(person) in infectables
-        rand(rd)
-    else
-        -1.0
-    end
+    rand(rd)
 end
 nsP2_1_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy,))
 nsP2_1_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy, Recovered))
@@ -451,15 +485,89 @@ nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, Reco
 
 m2_1_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_1))
 m2_1_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
-m2_2_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
+m2_2_1(μ=1 / 10^2 ; n=10^2, discrete_opt=0.0, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; discrete_opt, name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
 m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
+# old tests:
 # Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.01 - 5ae4f090-2430-4868-b8d0-8322c62e23e1/all/001218.png
 # Simulation ended at day 458.51707686527175
 # Took 528.464985147
 # Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.001 - 8bbcbc15-b331-4e3b-a153-b8082e87291f/all/000854.png
 # Simulation ended at day 323.698439247161
 # Took 451.879709406
-#
+###
+function distance(a::Person, b::Person)::Float64
+    √((a.pos.x - b.pos.x)^2 + (a.pos.y - b.pos.y)^2)
+end
+function δdc(d::Float64, c::Number)::Int64
+    if d < c
+        1
+    else
+        0
+    end
+end
+function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
+    d = distance(a, b)
+    res = δdc(d, c) * (model.μ / (1 + d))
+    # if res > 0
+    #     @labeled d
+    #     @labeled res
+    # end
+    return res
+end
+function nsP3_g(model::CoronaModel, person::Person, infectors, infectables, f_ij=f_ij2 ; c)::Float64
+    if ! (getStatus(person) in infectables)
+        return -1
+    end
+    totalRate = 0
+    for neighbor in person.currentPlace.people
+        if ! (neighbor.status in infectors)
+            continue
+        end
+        totalRate += f_ij(model, person, neighbor, c)
+    end
+    if totalRate <= 0
+        return -1
+    end
+    # @labeled totalRate
+    rd = Exponential(inv(totalRate))
+    rand(rd)
+end
+
+# TODO
+nsP2_1_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (Healthy, Recovered))
+nsP2_2_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy,))
+nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy, Recovered))
+
+function m3_1_1(μ=1 / 10^3 ; n=10^2, discrete_opt=1.0, c=30, kwargs...)
+    nsP3_1_1(model::CoronaModel, person::Person) = nsP3_g(model, person, (Sick,), (Healthy,), f_ij2 ; c)
+    execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_1_1))
+end
+function m3_1_1_ip(μ=1 / 10^3 ; discrete_opt=1.0, c=30, kwargs...)
+    gw = 20
+    gh = 40
+    gaps = [(i, j) for i in 20:22 for j in 1:gw]
+    n = gw * gh - length(gaps)
+
+    nsP3_1_1(model::CoronaModel, person::Person) = nsP3_g(model, person, (Sick,), (Healthy,), f_ij2 ; c)
+    model = CoronaModel(; name="$(@currentFuncName)¦ n=$n, c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_1_1)
+
+    cp = model.centralPlace
+    ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
+                    pos=(x = j * ((cp.width - 20) / gw),
+                        y = i * ((cp.height - 20) / gh)),
+                    status=(if i in 1:2
+        Sick
+    else
+        Healthy
+    end)
+                ) 
+            for i in 1:gh for j in 1:gw if !((i, j) in gaps)]
+    execModel(; n, kwargs..., model, initialPeople=ip)
+end
+# TODO
+m2_1_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
+m2_2_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
+m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
 ##
 ps1 = model1()
 ##
@@ -514,7 +622,7 @@ plot(dt, x=:Time, y=:Number, color=:Status,
         end
     end
 end
-    bello()
+    bella()
 ##
     framerate = 120
     @time record(scene, "test.mkv"; framerate=framerate) do io

@@ -6,3 +6,8 @@ function tsendall() {
 function ani() {
     imgdirs2vid "${^@}"/all
 }
+function ani-ts() {
+    ani "$@"
+    tsendall "$@"
+    bello
+}
