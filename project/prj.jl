@@ -34,8 +34,17 @@ mutable struct Place{T}
         new{Person}(name, width, height, plotPos, people)
     end
 end
-mutable struct Marketplace
+mutable struct Marketplace{R,E}
     place::Place
+    # μg::Float64
+    enterRd::R
+    exitRd::E
+    function Marketplace{R,E}(place, enterRd, exitRd) where {R,E}
+        new{R,E}(place, enterRd, exitRd)
+    end
+end
+function Marketplace(; place, μg::Number, ag::Number, bg::Number) 
+    Marketplace(place, Exponential(inv(μg)), Uniform(ag, bg))
 end
 mutable struct Workplace
     place::Place
@@ -62,14 +71,14 @@ mutable struct Person # <: AbstractAgent
     workplace::Union{Workplace,Nothing}
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
-    # removableEvents::Array{Int}
+    moveEvents::Array{Int}
     function Person(; id=-1, pos=(x = 0., y = 0.), status=Healthy, currentPlace, workplace=nothing, isIsolated=false, 
         sickEvent=nothing
-        # ,removableEvents=[]
+        , moveEvents=[]
         )
         me = new(id, pos, status, currentPlace, workplace, isIsolated, 
         sickEvent
-        # ,removableEvents
+        , moveEvents
         )
         push!(currentPlace.people, me)
         me
@@ -126,27 +135,28 @@ mutable struct CoronaModel{F1,F2,F3,F4}
     marketplaces::Array{Marketplace}
     workplaces::Array{Workplace}
     smallGridMode::Bool
+    isolationProbability::Float64
     μ::Float64
     pq::MutableBinaryMinHeap{SEvent}
     nextConclusion::F1
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
+        me = new(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
 function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
-    marketplaces=[], workplaces=[], smallGridMode=false,μ=1.0, nextSickness::F4,
+    marketplaces=[], workplaces=[], smallGridMode=false, isolationProbability=0.0, μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
     hasDied::F2=defaultHasDiedλ(0.8),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
-    CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -198,7 +208,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = "$(model.name), n=$n, DiS=$daysInSec - $(uuid4())"
+    runID = "$(model.name), n=$n, μ=$(model.μ), discrete_opt=$(discrete_opt), isolationProbability=$(model.isolationProbability), DiS=$daysInSec - $(Dates.now())" # $(uuid4())
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -212,7 +222,8 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     lastTime = 0
     function drawPlace(place::Place)
         # be sure to output images with even width and height, or encoding them will need padding
-        old_matrix = getmatrix()
+        # old_matrix = getmatrix()
+        gsave()
         padTop = 16
 
         translate(place.plotPos.x, place.plotPos.y)
@@ -225,10 +236,19 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         for person::Person in place.people
             sethue(colorPerson(person))
             circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
+            if person.isIsolated
+                gsave()
+                setopacity(1.0)
+                sethue("purple")
+                setline(4.5)
+                circle(person.pos.x, person.pos.y, 2.3, :stroke) 
+                grestore()
+            end
         end
-        setopacity(1.0)
-        clipreset()
-        setmatrix(old_matrix)
+        # setopacity(1.0)
+        # clipreset()
+        # setmatrix(old_matrix)
+        grestore()
     end
     function makieSave(tNow)
         frames = floor(Int, ((tNow - lastTime) / daysInSec) / (1 / framerate))
@@ -278,27 +298,33 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function setStatus(tNow, person::Person, status::InfectionStatus)
         # person.status[] = status
         person.status = status
+        if status == Sick
+            if model.isolationProbability > 0.0 && initCompleted
+                if rand() <= model.isolationProbability
+                    person.isIsolated = true
+                end
+            end
+        else
+            person.isIsolated = false
+        end
         if initCompleted
             @alertStatus
-            recalcSickness(tNow, person.currentPlace)
+            if ! person.isIsolated
+                recalcSickness(tNow, person.currentPlace)
+            end
             if visualize
-                # cs[person.id] = colorPerson(person)
                 makieSave(tNow)
             end 
         end
     end
     function setPos(tNow, person::Person, pos)
-        # person.pos[] = pos
         person.pos = pos
-        # TODO2 react to pos change
+        recalcSickness(tNow, person.currentPlace)
     end
     function randomizePos(tNow, person::Person)
         setPos(tNow, person, (x = rand(Uniform(0, getPlace(person).width)), y = rand(Uniform(0, getPlace(person).height))))
         return person
     end
-    # function cleanupEvents(person::Person)
-    #     cleanupEvents(person.removableEvents)
-    # end
     function cleanupEvents(handles::AbstractArray{Int})
         for handle in handles 
             cleanupEvents(handle)
@@ -313,6 +339,9 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function cleanupEvents(handle::Nothing) end
     lastRecalcTime = 0
     function recalcSickness(tNow, place::Place)
+        if ! initCompleted
+            return
+        end
         if discrete_opt > 0
             if ! (isempty(model.pq)) 
                 nEvent, useless = top_with_handle(model.pq) # first(model.pq)
@@ -359,6 +388,32 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
         return person
     end
+    function swapPlaces(tNow, person::Person, newPlace::Place)
+        cleanupEvents(person.moveEvents)
+        oldPlace = person.currentPlace
+        person.currentPlace = newPlace
+        recalcSickness(tNow, oldPlace)
+        randomizePos(tNow, person) # will recalcSickness for newPlace, too
+        return oldPlace
+    end
+    function maybeGoToMarket(tNow, market::Marketplace, person::Person)
+        tNext = tNow + rand(market.enterRd)
+        moveEvent = pushEvent(tNext) do tNow # Enter the market
+            oldPlace = swapPlaces(tNow, person, newPlace)
+            tNext = tNow + rand(market.exitRd)
+            moveEvent = pushEvent(tNext) do tNow # Go back to where they came from
+                swapPlaces(tNow, person, oldPlace)
+                genMarketEvents(tNow, person)
+            end
+            push!(person.moveEvents, moveEvent)
+        end
+        push!(person.moveEvents, moveEvent)
+    end
+    function genMarketEvents(tNow, person::Person)
+        for market in model.marketplaces
+            maybeGoToMarket(tNow, market, person)
+        end
+    end
     if isnothing(initialPeople)
         people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
     else
@@ -373,7 +428,12 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             end
         end
     end
+    for person in people
+        genMarketEvents(0, person)
+    end
     initCompleted = true
+    recalcSickness(0, model.centralPlace)
+
     dt::Union{DataFrame,Nothing} = nothing
     if internalVisualize
         # (scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
@@ -529,7 +589,11 @@ m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=Corona
 # Took 451.879709406
 ###
 function distance(a::Person, b::Person)::Float64
-    √((a.pos.x - b.pos.x)^2 + (a.pos.y - b.pos.y)^2)
+    if a.isIsolated || b.isIsolated
+        return Inf
+    else
+        return √((a.pos.x - b.pos.x)^2 + (a.pos.y - b.pos.y)^2)
+    end
 end
 function δdc(d::Float64, c::Number)::Int64
     if d < c
@@ -548,7 +612,7 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     return res
 end
 
-function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, infectors, infectables, f_ij=f_ij2, kwargs...)
+function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
             return -1
@@ -563,12 +627,16 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, infectors, infectabl
         if totalRate <= 0
             return -1
         end
+        if totalRate == Inf
+            @warn "Infinite rate observed!"
+            return 0
+        end
         # @labeled totalRate
         rd = Exponential(inv(totalRate))
-        rand(rd)
+        return rand(rd)
     end
 
-    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$c, μ=$(μ), discrete_opt=$(discrete_opt)", discrete_opt, μ, nextSickness=nsP3_g)
+    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$c", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability)
 
     execModel(; n, kwargs..., model)
 end
