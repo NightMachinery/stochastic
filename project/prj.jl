@@ -2,7 +2,7 @@
 using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs, IterTools
+using Random, Distributions, DataStructures, Lazy, MLStyle, UUIDs, IterTools, Dates
 using Gadfly
 import Cairo, Fontconfig
 using Colors
@@ -39,12 +39,16 @@ mutable struct Marketplace{R,E}
     # μg::Float64
     enterRd::R
     exitRd::E
-    function Marketplace{R,E}(place, enterRd, exitRd) where {R,E}
+    function Marketplace{R,E}(place, enterRd::R, exitRd::E) where {R,E}
         new{R,E}(place, enterRd, exitRd)
     end
 end
-function Marketplace(; place, μg::Number, ag::Number, bg::Number) 
-    Marketplace(place, Exponential(inv(μg)), Uniform(ag, bg))
+function Marketplace(; place, 
+    # Realistic times will not be noticeable in our timeframes. So let's think of these as hotels. not markets.
+    μg::Number=(1 / 40), ag::Number=(0.5), bg::Number=(20) 
+    # μg::Number=(1 / 4), ag::Number=(0.5 / 24), bg::Number=(4 / 24) 
+    )
+    Marketplace{Exponential{Float64},Uniform{Float64}}(place, Exponential(inv(μg)), Uniform(ag, bg))
 end
 mutable struct Workplace
     place::Place
@@ -148,7 +152,7 @@ mutable struct CoronaModel{F1,F2,F3,F4}
         me
     end
 end
-function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10)),
+function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=nothing,
     marketplaces=[], workplaces=[], smallGridMode=false, isolationProbability=0.0, μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
@@ -156,6 +160,9 @@ function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=Place(; n
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4}
 
+    if isnothing(centralPlace)
+        centralPlace = Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10))
+    end
     CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
@@ -218,6 +225,15 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         # cs = []
         #     scene = Scene(resolution=sceneSize)
     end
+    ###
+    log_io = open("$plotdir/log.txt", "w")
+    function sv1(str)
+        if serverVerbosity >= 1
+            println(str)
+        end
+        println(log_io, str)    
+    end
+    ###
     frameCounter = 0
     lastTime = 0
     function drawPlace(place::Place)
@@ -281,6 +297,9 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         background("white")
 
         for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
+            if !(place isa Place)
+                place = place.place
+            end
             drawPlace(place)
         end
 
@@ -389,9 +408,12 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         return person
     end
     function swapPlaces(tNow, person::Person, newPlace::Place)
-        cleanupEvents(person.moveEvents)
         oldPlace = person.currentPlace
+        sv1("Person #$(person.id) going from '$(oldPlace.name)' to '$(newPlace.name)'.")
+        cleanupEvents(person.moveEvents)
         person.currentPlace = newPlace
+        delete!(oldPlace.people, person)
+        push!(newPlace.people, person)
         recalcSickness(tNow, oldPlace)
         randomizePos(tNow, person) # will recalcSickness for newPlace, too
         return oldPlace
@@ -399,7 +421,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function maybeGoToMarket(tNow, market::Marketplace, person::Person)
         tNext = tNow + rand(market.enterRd)
         moveEvent = pushEvent(tNext) do tNow # Enter the market
-            oldPlace = swapPlaces(tNow, person, newPlace)
+            oldPlace = swapPlaces(tNow, person, market.place)
             tNext = tNow + rand(market.exitRd)
             moveEvent = pushEvent(tNext) do tNow # Go back to where they came from
                 swapPlaces(tNow, person, oldPlace)
@@ -447,18 +469,22 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
 
     cEvent = nothing
-    while ! (isempty(model.pq))
-        cEvent, h = top_with_handle(model.pq)
-        cleanupEvents(h)
-        if cEvent.time > simDuration
-            println("Simulation has exceeded authorized duration. Concluding.")
-            break
+    try
+        while ! (isempty(model.pq))
+            cEvent, h = top_with_handle(model.pq)
+            cleanupEvents(h)
+            if cEvent.time > simDuration
+                println("Simulation has exceeded authorized duration. Concluding.")
+                break
+            end
+            sv1("-> receiving event at $(cEvent.time)")
+            cEvent.callback(cEvent.time)
+            if visualize
+                insertPeople(dt, cEvent.time, people)
+            end
         end
-        sv1("-> receiving event at $(cEvent.time)")
-        cEvent.callback(cEvent.time)
-        if visualize
-            insertPeople(dt, cEvent.time, people)
-        end
+    finally
+        close(log_io) # flushes as well
     end
     @assert (! isnothing(cEvent)) "Simulation has not run any events."
     println("Simulation ended at day $(cEvent.time)")
@@ -544,6 +570,32 @@ function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
     genp_grid_hgap
 end
 gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
+## tmp markets
+function market_test1(model_fn::Function, args... ; kwargs...)
+    pad = 40 # should cover the titles, too
+    centralPlace = Place(; name="Central", width=300, height=300, plotPos=(x = 10, y = 10))
+
+    m1 = Marketplace(; 
+        place=Place(; name="Supermarket 1",
+        width=60,
+        height=30,
+        plotPos=(x = (centralPlace.plotPos.x + centralPlace.width + pad),
+            y = centralPlace.plotPos.y) 
+    ))
+    m2 = Marketplace(; 
+    place=Place(; name="Supermarket 2",
+    width=40,
+    height=100,
+    plotPos=(x = m1.place.plotPos.x,
+        y = (m1.place.plotPos.y + m1.place.height + pad)) 
+    ))
+
+    model_fn(args...; kwargs...,
+    centralPlace,
+    marketplaces=[m1,m2],
+    modelNameAppend=", $(@currentFuncName)"
+    )
+end
 ## Models
 model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
 
@@ -608,11 +660,11 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     # if res > 0
     #     @labeled d
     #     @labeled res
-    # end
+# end
     return res
 end
 
-function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, kwargs...)
+function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], modelNameAppend="", kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
             return -1
@@ -620,7 +672,7 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability
         totalRate = 0
         for neighbor in person.currentPlace.people
             if ! (neighbor.status in infectors)
-                continue
+            continue
             end
             totalRate += f_ij(model, person, neighbor, c)
         end
@@ -636,7 +688,7 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability
         return rand(rd)
     end
 
-    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$c", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability)
+    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$(c)$modelNameAppend", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability, centralPlace, marketplaces)
 
     execModel(; n, kwargs..., model)
 end
