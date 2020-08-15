@@ -180,11 +180,24 @@ end
 function getPlace(person::Person)
     person.currentPlace# []
 end
-function insertPeople(dt::DataFrame, t, people)
+function countStatus(people::AbstractArray{Person}, status::InfectionStatus)
+    count(people) do p p.status == status end
+end
+function countStatuses(people)
+    res::Dict{InfectionStatus,Int64} = Dict()
     for status in instances(InfectionStatus)
-        push!(dt, (t, count(people) do p p.status == status end, string(status)))    
+        push!(res, status => countStatus(people, status))
     end
-    dt
+    res
+end
+function insertPeople(dt::DataFrame, t, people, visualize)
+    counts = countStatuses(people)
+    if visualize
+        for status in instances(InfectionStatus)
+            push!(dt, (t, counts[status], string(status)))    
+        end
+    end
+    counts
 end
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
@@ -197,7 +210,8 @@ macro injectModel(name)
         end
     end
 end
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
+    startTime = time()
     ###
     if isa(initialPeople, Function)
         initialPeople = initialPeople(model)
@@ -215,7 +229,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = "$(model.name), n=$n, μ=$(model.μ), discrete_opt=$(discrete_opt), isolationProbability=$(model.isolationProbability), DiS=$daysInSec - $(Dates.now())" # $(uuid4())
+    runID = "$(model.name), n=$n, μ=$(model.μ), discrete_opt=$(discrete_opt), isolationP=$(model.isolationProbability), DiS=$daysInSec, RM=$marketRemembersPos - $(Dates.now())" # $(uuid4())
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -227,12 +241,14 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
     ###
     log_io = open("$plotdir/log.txt", "w")
-    function sv1(str)
-        if serverVerbosity >= 1
+    function sv_g(level::Int64, str)
+        if serverVerbosity >= level
             println(str)
         end
         println(log_io, str)    
     end
+    sv0(str) = sv_g(0, str)
+    sv1(str) = sv_g(1, str)
     ###
     frameCounter = 0
     lastTime = 0
@@ -284,8 +300,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             destCopy = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
         
             cmd = `cp  $dest $destCopy`
-            # println(string(cmd))
-            # flush(STDOUT)
             run(cmd, wait=false)
         end
 
@@ -304,7 +318,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
 
         finish()
-        println("Key frame saved: $dest")
+        sv0("Key frame saved: $dest")
 
         # error("hi")
     end
@@ -407,24 +421,38 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
         return person
     end
-    function swapPlaces(tNow, person::Person, newPlace::Place)
+    rememberedPositions::Dict{Any,Any} = Dict()
+    function swapPlaces(tNow, person::Person, newPlace::Place ; rememberOldPos=false, rememberNewPos=false)
         oldPlace = person.currentPlace
         sv1("Person #$(person.id) going from '$(oldPlace.name)' to '$(newPlace.name)'.")
         cleanupEvents(person.moveEvents)
         person.currentPlace = newPlace
         delete!(oldPlace.people, person)
         push!(newPlace.people, person)
-        recalcSickness(tNow, oldPlace)
-        randomizePos(tNow, person) # will recalcSickness for newPlace, too
+        recalcSickness(tNow, oldPlace) # Note that this happens automatically for newPlace because of setPos
+        if rememberOldPos
+            rememberedPositions[person, oldPlace] = person.pos
+        end
+        if rememberNewPos
+            newPos = get(rememberedPositions, (person, newPlace), nothing)
+            if isnothing(newPos)
+                sv0("!!! Asked to remember position for (person: #$(person.id), place: $(place.name)), but no memory found. Randomizing new position.")
+                randomizePos(tNow, person)
+            else
+                setPos(tNow, person, newPos)
+            end
+        else
+            randomizePos(tNow, person)
+        end
         return oldPlace
     end
     function maybeGoToMarket(tNow, market::Marketplace, person::Person)
         tNext = tNow + rand(market.enterRd)
         moveEvent = pushEvent(tNext) do tNow # Enter the market
-            oldPlace = swapPlaces(tNow, person, market.place)
+            oldPlace = swapPlaces(tNow, person, market.place; rememberOldPos=marketRemembersPos)
             tNext = tNow + rand(market.exitRd)
             moveEvent = pushEvent(tNext) do tNow # Go back to where they came from
-                swapPlaces(tNow, person, oldPlace)
+                swapPlaces(tNow, person, oldPlace ; rememberNewPos=marketRemembersPos)
                 genMarketEvents(tNow, person)
             end
             push!(person.moveEvents, moveEvent)
@@ -474,20 +502,22 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             cEvent, h = top_with_handle(model.pq)
             cleanupEvents(h)
             if cEvent.time > simDuration
-                println("Simulation has exceeded authorized duration. Concluding.")
+                sv0("Simulation has exceeded authorized duration. Concluding.")
                 break
             end
             sv1("-> receiving event at $(cEvent.time)")
             cEvent.callback(cEvent.time)
-            if visualize
-                insertPeople(dt, cEvent.time, people)
+            counts = insertPeople(dt, cEvent.time, people, visualize)
+            if all(counts[s] == 0 for s in (Sick, RecoveredRemission))
+                sv0("Simulation has reached equilibrium.")
+                break
             end
         end
     finally
+        @assert (! isnothing(cEvent)) "Simulation has not run any events."
+        sv0("Simulation ended at day $(cEvent.time) and took $(time() - startTime).")
         close(log_io) # flushes as well
     end
-    @assert (! isnothing(cEvent)) "Simulation has not run any events."
-    println("Simulation ended at day $(cEvent.time)")
     # model.pq  # causes stackoverflow on VSCode displaying it
     if visualize
         plotTimeseries(dt, "$plotdir/timeseries.png")
@@ -517,7 +547,9 @@ function plotTimeseries(dt::DataFrame, dest)
     run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
     run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
     sleep(1.0) # to make sure things have loaded succesfully
-    run(`brishzq.zsh ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+
+    # sout was useless
+    run(`brishzq.zsh serr ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
 
     # bella()
 end
@@ -533,7 +565,8 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
     end
 end
 function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
-    println("Took $(@elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...))")
+    took = @elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...)
+    println("Took $(took) (with plotTimeseries)")
     global lastPeople, lastDt = ps, dt
     # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
     # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
@@ -550,7 +583,7 @@ function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
     # return ps, dt
     nothing
 end
-## Spaces
+    ## Spaces
 function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
     function genp_grid_hgap(model::CoronaModel)
         n = gw * gh - length(gaps)
@@ -651,7 +684,7 @@ function δdc(d::Float64, c::Number)::Int64
     if d < c
         1
     else
-        0
+    0
     end
 end
 function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64

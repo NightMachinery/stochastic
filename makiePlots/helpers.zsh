@@ -13,4 +13,5 @@ function ani-ts() {
 }
 function makie-clean() {
     rm -r ~/Base/_Code/uni/stochastic/makiePlots/**/all(/)
+    rm ~/Base/_Code/uni/stochastic/makiePlots/**/log.txt
 }
