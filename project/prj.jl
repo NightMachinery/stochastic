@@ -434,9 +434,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             if ! person.isIsolated
                 recalcSickness(tNow, person.currentPlace)
             end
-            if visualize
-                makieSave(tNow)
-            end 
         end
     end
     function setPos(tNow, person::Person, pos)
@@ -630,8 +627,13 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
                 sv0("Simulation has exceeded authorized duration. Concluding.")
                 break
             end
-            sv1("-> receiving event at $(cEvent.time)")
+            sv1("-> receiving event at $(cEvent.time) ($(time2day(cEvent.time)))")
             cEvent.callback(cEvent.time)
+
+            if visualize
+                makieSave(cEvent.time)
+            end 
+
             counts = insertPeople(dt, cEvent.time, people, visualize)
             if all(counts[s] == 0 for s in (Sick, RecoveredRemission))
                 sv0("Simulation has reached equilibrium.")
