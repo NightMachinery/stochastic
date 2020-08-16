@@ -235,7 +235,7 @@ end
 function isTracked(person::Person)
     person.id % 23 == 0
 end
-isolationColor = "purple"
+isolationColor = colorant"purple"
 function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
     startTime = time()
     ###
@@ -629,6 +629,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         makieSave(0)
 
         dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
+        run(`brishzq.zsh pbcopy $plotdir/all/`) # Use mpv to play the imgseq directly!
     end
 
     cEvent = nothing
@@ -684,14 +685,18 @@ function plotTimeseries(dt::DataFrame, dest)
         )
     ) |> PNG(dest, 26cm, 18cm, dpi=150)
 
-    run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
-    run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
-    sleep(1.0) # to make sure things have loaded succesfully
 
-    # sout was useless
-    run(`brishzq.zsh serr ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+    ###
+    @comment begin
+        # run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
+        run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
+        sleep(1.0) # to make sure things have loaded succesfully
+        # sout was useless
+        run(`brishzq.zsh serr ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+    end
 
-    # bella()
+    bella()
+    ###
 end
 
 firstbell()
@@ -786,8 +791,8 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     
     local w1, w2, w3, w4, w5
     let w_size = rand(Uniform(60, 80))
-        w1 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24)),
-        endTime=rand(Uniform(16 / 24, 23 / 24)),
+        w1 = Workplace(; startTime=rand(Uniform(22/24, 23/24)),
+        endTime=rand(Uniform(6 / 24, 7 / 24)),
         eP=rand(Uniform(0.05, 0.1)),
         place=Place(; name="Office α",
         width=w_size,
