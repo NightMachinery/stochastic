@@ -172,11 +172,6 @@ function CoronaModel(; name="untitled", discrete_opt::N=0.0, centralPlace=nothin
     CoronaModel{F1,F2,F3,F4,N}(name, discrete_opt, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
-# idCounter = 0
-# function newPerson(; kwargs...)
-#     idCounter += 1
-#     Person(; id=idCounter, kwargs...)
-# end
 function getStatus(person::Person)
     person.status# []
 end
@@ -308,27 +303,27 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             end
             grestore()
         end
-        setopacity(0.7)
         for person::Person in place.people 
             if isTracked(person)
                 continue
             end
+            setopacity(0.65)
             sethue(colorPerson(person))
-            circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
+            circle(person.pos.x, person.pos.y, 2.3, :fill)
+
             if person.isIsolated
-                gsave()
-                setopacity(1.0)
                 sethue(isolationColor)
                 setline(4.5)
-                circle(person.pos.x, person.pos.y, 2.3, :stroke) 
-                grestore()
+            else
+                sethue("white")
+                setline(3)
             end
-           
+            setopacity(1.0)
+            circle(person.pos.x, person.pos.y, 2.8, :stroke) 
         end
         for person::Person in place.people
             # OVERLAY PHASE
             if isTracked(person) # for debugging purposes
-                gsave()
                 setopacity(1.0)
                 # setmode("overlay") # didn't work
                 # fontsize(7)
@@ -336,22 +331,34 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
                 # textcentered(string(person.id), person.pos...)
 
                 # sethue("black")
-                # settext("<span font='19' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
-                sethue(colorPerson(person))
-                # settext("<span font='18' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
-
-                setline(3)
-                fontsize(22)
-                textoutlines("#$(person.id)", Point(person.pos...), :path, valign=:center, halign=:center)
-                fillpreserve()
                 if person.isIsolated
-                    sethue(isolationColor)
+                    my_color = isolationColor
                 else
-                    sethue("gold")
+                    my_color = colorPerson(person)
                 end
-                strokepath()
+                my_foreground = @match person.status begin
+                    Sick || RecoveredRemission || Dead=> RGB(1, 1, 1) # :red    
+                    Healthy || Recovered => RGB(0, 0, 0) # :green
+                end
 
-                grestore()
+                settext("<span font='20' background ='#$(hex(my_color))' foreground='#$(hex(my_foreground))'><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+
+                @comment begin
+                    # @bitrot might need gsave, grestore
+                    sethue(colorPerson(person))
+                    # settext("<span font='18' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+
+                    setline(3)
+                    fontsize(22)
+                    textoutlines("#$(person.id)", Point(person.pos...), :path, valign=:center, halign=:center)
+                    fillpreserve()
+                    if person.isIsolated
+                        sethue(isolationColor)
+                    else
+                        sethue("gold")
+                    end
+                    strokepath()
+                end
             end
             @comment if place.smallGridMode > 0 && rand() <= 0.1 # for debugging purposes
                 gsave()
@@ -577,7 +584,13 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     ###
     function scheduleWork(tNow, person::Person)
         @nodead
-        tNext = tNow + restDuration(person.workplace)
+        tNext = tNow # + restDuration(person.workplace)
+        dayT = tNow - floor(tNow)
+        if dayT <= person.workplace.startTime
+            tNext += person.workplace.startTime - dayT
+        else
+            tNext += person.workplace.startTime + (1 - dayT)
+        end
         pushEvent(tNext) do tNow # go to work
             @nodead
             oldPlace = swapPlaces(tNow, person, person.workplace.place; rememberOldPos=marketRemembersPos) # @WONTFIX Use another param for this (actually don't, as you'll need markets to remember pos for you since you might go market->work->central)
@@ -713,10 +726,15 @@ end
     ## Spaces
 function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
     function genp_grid_hgap(model::CoronaModel)
+        cc = 0
+        function get_cc() 
+            cc += 1
+            return cc
+        end
         n = gw * gh - length(gaps)
 
         cp = model.centralPlace
-        ip = [Person(; id=((i - 1) * gh + j), currentPlace=cp, 
+        ip = [Person(; id=(get_cc()), currentPlace=cp, 
                     pos=(x = j * ((cp.width - 20) / gw),
                         y = i * ((cp.height - 20) / gh)),
                     status=(if i in 1:2
@@ -824,7 +842,7 @@ function market_test1(model_fn::Function, args... ; kwargs...)
             y = m4.place.plotPos.y) 
         ))
     end
-
+    # @infiltrate
     model_fn(args...; kwargs...,
     centralPlace,
     marketplaces=[m1,m2,m3,m4]
