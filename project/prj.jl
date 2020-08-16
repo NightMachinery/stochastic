@@ -1,4 +1,6 @@
 # module SIR
+# TODO Dead people shouldn't move
+# TODO Move smallGridMode from Model to Place
 using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
@@ -30,8 +32,9 @@ mutable struct Place{T}
     height::Float64
     plotPos::NamedTuple{(:x, :y),Tuple{Float64,Float64}}
     people::Set{T}
-    function Place(; name, width, height, people=Set(), plotPos)
-        new{Person}(name, width, height, plotPos, people)
+    smallGridMode::Float64 # zero to disable
+    function Place(; name, width, height, people=Set(), plotPos, smallGridMode=0.0)
+        new{Person}(name, width, height, plotPos, people, smallGridMode)
     end
 end
 mutable struct Marketplace{R,E}
@@ -132,13 +135,12 @@ function defaultNextCompleteRecovery()
     rand(Uniform(5, 7))
 end
 
-mutable struct CoronaModel{F1,F2,F3,F4}
+mutable struct CoronaModel{F1,F2,F3,F4,N <: Number}
     name::String
-    discrete_opt::Float64
+    discrete_opt::N
     centralPlace::Place
     marketplaces::Array{Marketplace}
     workplaces::Array{Workplace}
-    smallGridMode::Bool
     isolationProbability::Float64
     μ::Float64
     pq::MutableBinaryMinHeap{SEvent}
@@ -146,24 +148,25 @@ mutable struct CoronaModel{F1,F2,F3,F4}
     hasDied::F2
     nextCompleteRecovery::F3
     nextSickness::F4
-    function CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4}
-        me = new(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    function CoronaModel{F1,F2,F3,F4,N}(name, discrete_opt::N, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion::F1, hasDied::F2, nextCompleteRecovery::F3, nextSickness::F4) where {F1,F2,F3,F4,N}
+        me = new(name, discrete_opt, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
         # me.nextSickness = (p::Person) -> nextSickness(me, p)
         me
     end
 end
-function CoronaModel(; name="untitled", discrete_opt=0.0, centralPlace=nothing,
-    marketplaces=[], workplaces=[], smallGridMode=false, isolationProbability=0.0, μ=1.0, nextSickness::F4,
+function CoronaModel(; name="untitled", discrete_opt::N=0.0, centralPlace=nothing,
+    marketplaces=[], workplaces=[], smallGridMode=0.0, isolationProbability=0.0, μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
     hasDied::F2=defaultHasDiedλ(0.8),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
-    ) where {F1,F2,F3,F4}
+    ) where {F1,F2,F3,F4,N}
 
     if isnothing(centralPlace)
         centralPlace = Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10))
     end
-    CoronaModel{F1,F2,F3,F4}(name, discrete_opt, centralPlace, marketplaces, workplaces, smallGridMode, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
+    centralPlace.smallGridMode = smallGridMode
+    CoronaModel{F1,F2,F3,F4,N}(name, discrete_opt, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
 end
 
 # idCounter = 0
@@ -203,6 +206,11 @@ end
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
     sv1("$tNow: Person #$(person.id) is $(getStatus(person))")
 end
+@copycode nodead begin
+    if person.status == Dead
+        return
+    end
+end
 macro injectModel(name)
     quote
         function $(esc(name))(args...; kwargs...)
@@ -210,6 +218,10 @@ macro injectModel(name)
         end
     end
 end
+function isTracked(person::Person)
+    person.id % 23 == 0
+end
+isolationColor = "purple"
 function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
     startTime = time()
     ###
@@ -229,7 +241,9 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     function pushEvent(callback::Function, time::Float64)
         return push!(model.pq, SEvent(callback, time)) # returns handle to event
     end
-    runID = "$(model.name), n=$n, μ=$(model.μ), discrete_opt=$(discrete_opt), isolationP=$(model.isolationProbability), DiS=$daysInSec, RM=$marketRemembersPos - $(Dates.now())" # $(uuid4())
+    runDesc = "$(model.name), n=$n, μ=$(model.μ), discrete_opt=$(discrete_opt), isolationP=$(model.isolationProbability), DiS=$daysInSec, RM=$marketRemembersPos"
+    runID = @> "$runDesc - $(Dates.now())" replace(r"/+" => "÷") # $(uuid4())
+
     plotdir = "$(pwd())/makiePlots/$(runID)"
     if internalVisualize
         mkpath(plotdir)
@@ -260,20 +274,72 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
 
         translate(place.plotPos.x, place.plotPos.y)
         sethue("black")
-        text(place.name, 10, padTop - 6)
+        text(place.name, 5, padTop - 6)
         translate(0, padTop)
+        setline(6)
         rect(0, 0, place.width, place.height, :stroke)
+        setline(1)
         rect(0, 0, place.width, place.height, :clip)
+        if place.smallGridMode > 0
+            gsave()
+            sethue(RGB(0, 16 / 255, 110 / 255))
+            setdash("dotdotdotdashed")
+            for i in 0:place.smallGridMode:(place.width + place.smallGridMode), j in 0:place.smallGridMode:(place.height + place.smallGridMode)
+                rect(i, j, place.smallGridMode, place.smallGridMode, :stroke)
+            end
+            grestore()
+        end
         setopacity(0.7)
-        for person::Person in place.people
+        for person::Person in place.people 
+            if isTracked(person)
+                continue
+            end
             sethue(colorPerson(person))
             circle(person.pos.x, person.pos.y, 2.3, :fillstroke)
             if person.isIsolated
                 gsave()
                 setopacity(1.0)
-                sethue("purple")
+                sethue(isolationColor)
                 setline(4.5)
                 circle(person.pos.x, person.pos.y, 2.3, :stroke) 
+                grestore()
+            end
+           
+        end
+        for person::Person in place.people
+            # OVERLAY PHASE
+            if isTracked(person) # for debugging purposes
+                gsave()
+                setopacity(1.0)
+                # setmode("overlay") # didn't work
+                # fontsize(7)
+
+                # textcentered(string(person.id), person.pos...)
+
+                # sethue("black")
+                # settext("<span font='19' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+                sethue(colorPerson(person))
+                # settext("<span font='18' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+
+                setline(3)
+                fontsize(22)
+                textoutlines("#$(person.id)", Point(person.pos...), :path, valign=:center, halign=:center)
+                fillpreserve()
+                if person.isIsolated
+                    sethue(isolationColor)
+                else
+                    sethue("gold")
+                end
+                strokepath()
+
+                grestore()
+            end
+            @comment if place.smallGridMode > 0 && rand() <= 0.1 # for debugging purposes
+                gsave()
+                setopacity(1.0)
+                sethue("blue")
+                fontsize(6)
+                textcentered(string(getSMG(person)), person.pos...)
                 grestore()
             end
         end
@@ -306,9 +372,18 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         frameCounter += 1
         dest = "$plotdir/all/$(@sprintf "%06d" frameCounter).png"
  
-        Drawing(600 * scaleFactor, 600 * scaleFactor, dest) # HARDCODED
+        dw = 600
+        dh = 600
+        Drawing(dw * scaleFactor, dh * scaleFactor, dest) # HARDCODED
         scale(scaleFactor)
-        background("white")
+        # background("white")
+        sethue("white")
+        rect(0, 0, dw, dh, :fill)
+        sethue("black")
+        titlePos = (x = dw / 2, y = 15)
+        settext("<span font='16' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
+        textcentered("Time of Last Snapshot = $tNow", titlePos.x, titlePos.y * 2 + 10)
+        translate(0, titlePos.y * 3 + 10)
 
         for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
             if !(place isa Place)
@@ -320,6 +395,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         finish()
         sv0("Key frame saved: $dest")
 
+        # preview() # didn't work here, idk why
         # error("hi")
     end
     function event2aniTime(tNow)
@@ -423,6 +499,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     end
     rememberedPositions::Dict{Any,Any} = Dict()
     function swapPlaces(tNow, person::Person, newPlace::Place ; rememberOldPos=false, rememberNewPos=false)
+        @assert person.status ≠ Dead "Deadmen don't move!"
         oldPlace = person.currentPlace
         sv1("Person #$(person.id) going from '$(oldPlace.name)' to '$(newPlace.name)'.")
         cleanupEvents(person.moveEvents)
@@ -447,11 +524,14 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         return oldPlace
     end
     function maybeGoToMarket(tNow, market::Marketplace, person::Person)
+        @nodead
         tNext = tNow + rand(market.enterRd)
         moveEvent = pushEvent(tNext) do tNow # Enter the market
+            @nodead
             oldPlace = swapPlaces(tNow, person, market.place; rememberOldPos=marketRemembersPos)
             tNext = tNow + rand(market.exitRd)
             moveEvent = pushEvent(tNext) do tNow # Go back to where they came from
+                @nodead
                 swapPlaces(tNow, person, oldPlace ; rememberNewPos=marketRemembersPos)
                 genMarketEvents(tNow, person)
             end
@@ -605,27 +685,35 @@ end
 gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
 ## tmp markets
 function market_test1(model_fn::Function, args... ; kwargs...)
-    pad = 40 # should cover the titles, too
-    centralPlace = Place(; name="Central", width=300, height=300, plotPos=(x = 10, y = 10))
+    vpad = 40 # should cover the titles, too
+    hpad = 20
+    centralPlace = Place(; name="Central", width=310, height=400, plotPos=(x = 10, y = 10))
 
     m1 = Marketplace(; 
-        place=Place(; name="Supermarket 1",
-        width=60,
-        height=30,
-        plotPos=(x = (centralPlace.plotPos.x + centralPlace.width + pad),
+        place=Place(; name="Hotel α",
+        width=100,
+        height=70,
+        plotPos=(x = (centralPlace.plotPos.x + centralPlace.width + hpad),
             y = centralPlace.plotPos.y) 
     ))
     m2 = Marketplace(; 
-    place=Place(; name="Supermarket 2",
-    width=40,
+    place=Place(; name="Hotel β",
+    width=60,
     height=100,
     plotPos=(x = m1.place.plotPos.x,
-        y = (m1.place.plotPos.y + m1.place.height + pad)) 
+        y = (m1.place.plotPos.y + m1.place.height + vpad)) 
+    ))
+    m3 = Marketplace(; μg=(1 / 7), ag=(1 / 24), bg=(9 / 24),
+    place=Place(; name="Mall α",
+    width=100,
+    height=60,
+    plotPos=(x = m1.place.plotPos.x + m1.place.width + hpad,
+        y = (m1.place.plotPos.y)) 
     ))
 
     model_fn(args...; kwargs...,
     centralPlace,
-    marketplaces=[m1,m2],
+    marketplaces=[m1,m2,m3],
     modelNameAppend=", $(@currentFuncName)"
     )
 end
@@ -673,8 +761,15 @@ m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=Corona
 # Simulation ended at day 323.698439247161
 # Took 451.879709406
 ###
+function getSMG(person::Person)
+    if person.currentPlace.smallGridMode > 0
+        return (ceil(Int, (person.pos.x / person.currentPlace.smallGridMode)), ceil(Int, (person.pos.y / person.currentPlace.smallGridMode)))
+    else
+        return (0, 0)
+    end
+end
 function distance(a::Person, b::Person)::Float64
-    if a.isIsolated || b.isIsolated
+    if (a.isIsolated || b.isIsolated) || (getSMG(a) ≠ getSMG(b))
         return Inf
     else
         return √((a.pos.x - b.pos.x)^2 + (a.pos.y - b.pos.y)^2)
@@ -697,7 +792,7 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     return res
 end
 
-function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], modelNameAppend="", kwargs...)
+function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], modelNameAppend="", smallGridMode=0.0, kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
             return -1
@@ -721,7 +816,7 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability
         return rand(rd)
     end
 
-    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$(c)$modelNameAppend", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability, centralPlace, marketplaces)
+    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$(c)$modelNameAppend", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability, centralPlace, marketplaces, smallGridMode)
 
     execModel(; n, kwargs..., model)
 end
