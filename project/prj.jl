@@ -68,6 +68,7 @@ end
     if workplace.endTime < workplace.startTime
         res -= 1
     end
+    return res
 end
 
 mutable struct Person # <: AbstractAgent
@@ -218,7 +219,7 @@ function time2day(time::Number)
     rem -= hours*3600
     mins = floor(rem/60)
     # secs = rem - 60 * mins
-    @sprintf "#%03d $02d:%02d" days hours mins 
+    @sprintf "#%03d %02d:%02d" days hours mins 
 end
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
@@ -240,7 +241,7 @@ function isTracked(person::Person)
     person.id % 23 == 0
 end
 isolationColor = "purple"
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=3, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
     startTime = time()
     ###
     if isa(initialPeople, Function)
@@ -595,7 +596,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
 
     employedN = 0
     for work in model.workplaces
-        num = work.eP * n
+        num = floor(Int, work.eP * n)
         eS = (employedN + 1)
         for person::Person in people[eS:(eS + num - 1)]
             person.workplace = work
@@ -603,6 +604,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         end
         employedN += num
     end
+    sv0("#$employedN people are employed, being $(employedN*100/n)% of the population.")
     ###
     initCompleted = true
     recalcSickness(0, model.centralPlace)
@@ -762,10 +764,10 @@ function market_test1(model_fn::Function, args... ; kwargs...)
         y = (m2.place.plotPos.y)) 
     ))
     # add bakery
-
+    local w1, w2, w3
     let w_size = rand(Uniform(30, 50))
-        w1 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24),
-        endTime=rand(Uniform(16 / 24, 23 / 24))),
+        w1 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24)),
+        endTime=rand(Uniform(16 / 24, 23 / 24)),
         eP=rand(Uniform(0.1, 0.2)),
         place=Place(; name="Office α",
         width=w_size,
@@ -775,8 +777,8 @@ function market_test1(model_fn::Function, args... ; kwargs...)
         ))
     end
     let w_size = rand(Uniform(30, 50))
-        w2 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24),
-        endTime=rand(Uniform(16 / 24, 23 / 24))),
+        w2 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24)),
+        endTime=rand(Uniform(16 / 24, 23 / 24)),
         eP=rand(Uniform(0.2, 0.3)),
         place=Place(; name="Office β",
         smallGridMode=7,
@@ -787,8 +789,8 @@ function market_test1(model_fn::Function, args... ; kwargs...)
         ))
     end
     let w_size = rand(Uniform(10, 20))
-        w3 = Workplace(; startTime=rand(Uniform(8 / 24, 9 / 24),
-        endTime=rand(Uniform(14 / 24, 16 / 24))),
+        w3 = Workplace(; startTime=rand(Uniform(8 / 24, 9 / 24)),
+        endTime=rand(Uniform(14 / 24, 16 / 24)),
         eP=rand(Uniform(0.04, 0.08)),
         place=Place(; name="Office γ",
         width=w_size,
