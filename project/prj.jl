@@ -57,15 +57,17 @@ mutable struct Workplace
     place::Place
     startTime::Float64
     endTime::Float64
-    function Workplace(; place, startTime, endTime)
-        new(place, startTime, endTime)
+    eP::Float64 # The probability of a person working there
+    function Workplace(; place, startTime, endTime, eP)
+        new(place, startTime, endTime, eP)
     end
 end
-function workDuration(workplace::Workplace)
-    return workDuration.endTime - workplace.startTime
-end
-function leisureDuration(workplace::Workplace)
-    return 1.0 - workDuration(workplace)
+@inline function restDuration(workplace::Workplace)
+    res = (1 - workplace.endTime) + workplace.startTime
+    # works if the endTime is after midnight, too
+    if workplace.endTime < workplace.startTime
+        res -= 1
+    end
 end
 
 mutable struct Person # <: AbstractAgent
@@ -561,6 +563,28 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
     for person in people
         genMarketEvents(0, person)
     end
+    function scheduleWork(tNow, person::Person)
+        @nodead
+        tNext = tNow + restDuration(person.workplace)
+        pushEvent(tNext) do tNow # go to work
+            @nodead
+            oldPlace = swapPlaces(tNow, person, person.workplace.place; rememberOldPos=marketRemembersPos) # @WONTFIX Use another param for this (actually don't, as you'll need markets to remember pos for you since you might go market->work->central)
+            tNext = tNow + (1 - restDuration(person.workplace))
+            moveEvent = pushEvent(tNext) do tNow # Go back to Central
+                @nodead
+                swapPlaces(tNow, person, model.centralPlace ; rememberNewPos=marketRemembersPos)
+                genMarketEvents(tNow, person)
+                scheduleWork(tNow, person)
+            end
+        end
+    end
+    for work in model.workplaces
+        num = work.eP * n
+        for person::Person in people[1:num]
+            person.workplace = work
+            scheduleWork(0, person)
+        end
+    end
     initCompleted = true
     recalcSickness(0, model.centralPlace)
 
@@ -700,6 +724,7 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     place=Place(; name="Hotel β",
     width=60,
     height=100,
+    smallGridMode=20,
     plotPos=(x = m1.place.plotPos.x,
         y = (m1.place.plotPos.y + m1.place.height + vpad)) 
     ))
@@ -710,10 +735,54 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     plotPos=(x = m1.place.plotPos.x + m1.place.width + hpad,
         y = (m1.place.plotPos.y)) 
     ))
+    m4 = Marketplace(; μg=(1/2), ag=(0.5 / 24), bg=(2 / 24),
+    place=Place(; name="Bakery",
+    width=12,
+    height=12,
+    plotPos=(x = m2.place.plotPos.x + m2.place.width + hpad,
+        y = (m2.place.plotPos.y)) 
+    ))
+    # add bakery
+
+    let w_size = rand(Uniform(30, 50))
+        w1 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24),
+        endTime=rand(Uniform(16 / 24, 23 / 24))),
+        eP=rand(Uniform(0.1, 0.2)),
+        place=Place(; name="Office α",
+        width=w_size,
+        height=w_size,
+        plotPos=(x = centralPlace.plotPos.x,
+            y = (centralPlace.plotPos.y + centralPlace.height + vpad)) 
+        ))
+    end
+    let w_size = rand(Uniform(30, 50))
+        w2 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24),
+        endTime=rand(Uniform(16 / 24, 23 / 24))),
+        eP=rand(Uniform(0.2, 0.3)),
+        place=Place(; name="Office β",
+        smallGridMode=7,
+        width=w_size,
+        height=w_size,
+        plotPos=(x = w1.place.plotPos.x + w1.place.width + hpad,
+            y = w1.place.plotPos.y) 
+        ))
+    end
+    let w_size = rand(Uniform(10, 20))
+        w3 = Workplace(; startTime=rand(Uniform(8 / 24, 9 / 24),
+        endTime=rand(Uniform(14 / 24, 16 / 24))),
+        eP=rand(Uniform(0.04, 0.08)),
+        place=Place(; name="Office γ",
+        width=w_size,
+        height=w_size,
+        plotPos=(x = w2.place.plotPos.x + w2.place.width + hpad,
+            y = w2.place.plotPos.y) 
+        ))
+    end
 
     model_fn(args...; kwargs...,
     centralPlace,
-    marketplaces=[m1,m2,m3],
+    marketplaces=[m1,m2,m3,m4],
+    workplaces=[w1,w2,w3]
     modelNameAppend=", $(@currentFuncName)"
     )
 end
@@ -792,7 +861,7 @@ function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     return res
 end
 
-function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], modelNameAppend="", smallGridMode=0.0, kwargs...)
+function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], workplaces=[], modelNameAppend="", smallGridMode=0.0, kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
             return -1
@@ -816,7 +885,7 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability
         return rand(rd)
     end
 
-    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$(c)$modelNameAppend", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability, centralPlace, marketplaces, smallGridMode)
+    model = CoronaModel(; name="$(@currentFuncName)¦ infectors=$infectors, infectables=$infectables, c=$(c)$modelNameAppend", discrete_opt, μ, nextSickness=nsP3_g, isolationProbability, centralPlace, marketplaces, workplaces, smallGridMode)
 
     execModel(; n, kwargs..., model)
 end
