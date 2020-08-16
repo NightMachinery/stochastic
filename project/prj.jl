@@ -157,7 +157,7 @@ mutable struct CoronaModel{F1,F2,F3,F4,N <: Number}
         me
     end
 end
-function CoronaModel(; name="untitled", discrete_opt::N=0.0, centralPlace=nothing,
+function CoronaModel(; name="untitled", discrete_opt::N=(1.0), centralPlace=nothing,
     marketplaces=[], workplaces=[], smallGridMode=0.0, isolationProbability=0.0, μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
@@ -166,7 +166,7 @@ function CoronaModel(; name="untitled", discrete_opt::N=0.0, centralPlace=nothin
     ) where {F1,F2,F3,F4,N}
 
     if isnothing(centralPlace)
-        centralPlace = Place(; name="Central", width=550, height=550, plotPos=(x = 10, y = 10))
+        centralPlace = Place(; name="Central", width=580, height=500, plotPos=(x = 10, y = 10))
     end
     centralPlace.smallGridMode = smallGridMode
     CoronaModel{F1,F2,F3,F4,N}(name, discrete_opt, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
@@ -191,7 +191,7 @@ function countStatuses(people)
     end
     res
 end
-function insertPeople(dt::DataFrame, t, people, visualize)
+function insertPeople(dt, t, people, visualize)
     counts = countStatuses(people)
     if visualize
         for status in instances(InfectionStatus)
@@ -236,7 +236,7 @@ function isTracked(person::Person)
     person.id % 23 == 0
 end
 isolationColor = colorant"purple"
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true, tracking=false, visTS::Bool=true)
     startTime = time()
     ###
     if isa(initialPeople, Function)
@@ -259,21 +259,15 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
     runID = @> "$runDesc - $(Dates.now())" replace(r"/+" => "÷") # $(uuid4())
 
     plotdir = "$(pwd())/makiePlots/$(runID)"
-    if internalVisualize
-        mkpath(plotdir)
-        @labeled plotdir
-        # xs = []
-        # ys = []
-        # cs = []
-        #     scene = Scene(resolution=sceneSize)
-    end
+    mkpath(plotdir)
+    @labeled plotdir
     ###
     log_io = open("$plotdir/log.txt", "w")
     function sv_g(level::Int64, str)
         if serverVerbosity >= level
             println(str)
+            println(log_io, str)
         end
-        println(log_io, str)    
     end
     sv0(str) = sv_g(0, str)
     sv1(str) = sv_g(1, str)
@@ -304,7 +298,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
             grestore()
         end
         for person::Person in place.people 
-            if isTracked(person)
+            if tracking && isTracked(person)
                 continue
             end
             setopacity(0.65)
@@ -321,52 +315,54 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
             setopacity(1.0)
             circle(person.pos.x, person.pos.y, 2.8, :stroke) 
         end
-        for person::Person in place.people
-            # OVERLAY PHASE
-            if isTracked(person) # for debugging purposes
-                setopacity(1.0)
-                # setmode("overlay") # didn't work
-                # fontsize(7)
+        if tracking
+            for person::Person in place.people
+                # OVERLAY PHASE
+                if tracking && isTracked(person) # for debugging purposes
+                    setopacity(1.0)
+                    # setmode("overlay") # didn't work
+                    # fontsize(7)
 
-                # textcentered(string(person.id), person.pos...)
+                    # textcentered(string(person.id), person.pos...)
 
-                # sethue("black")
-                if person.isIsolated
-                    my_color = isolationColor
-                else
-                    my_color = colorPerson(person)
-                end
-                my_foreground = @match person.status begin
-                    Sick || RecoveredRemission || Dead=> RGB(1, 1, 1) # :red    
-                    Healthy || Recovered => RGB(0, 0, 0) # :green
-                end
-
-                settext("<span font='20' background ='#$(hex(my_color))' foreground='#$(hex(my_foreground))'><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
-
-                @comment begin
-                    # @bitrot might need gsave, grestore
-                    sethue(colorPerson(person))
-                    # settext("<span font='18' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
-
-                    setline(3)
-                    fontsize(22)
-                    textoutlines("#$(person.id)", Point(person.pos...), :path, valign=:center, halign=:center)
-                    fillpreserve()
+                    # sethue("black")
                     if person.isIsolated
-                        sethue(isolationColor)
+                        my_color = isolationColor
                     else
-                        sethue("gold")
+                        my_color = colorPerson(person)
                     end
-                    strokepath()
+                    my_foreground = @match person.status begin
+                        Sick || RecoveredRemission || Dead=> RGB(1, 1, 1) # :red    
+                        Healthy || Recovered => RGB(0, 0, 0) # :green
+                    end
+
+                    settext("<span font='20' background ='#$(hex(my_color))' foreground='#$(hex(my_foreground))'><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+
+                    @comment begin
+                        # @bitrot might need gsave, grestore
+                        sethue(colorPerson(person))
+                        # settext("<span font='18' ><b>$(person.id)</b></span>", Point(person.pos...) ; markup=true, halign="center", valign="center")
+
+                        setline(3)
+                        fontsize(22)
+                        textoutlines("#$(person.id)", Point(person.pos...), :path, valign=:center, halign=:center)
+                        fillpreserve()
+                        if person.isIsolated
+                            sethue(isolationColor)
+                        else
+                            sethue("gold")
+                        end
+                        strokepath()
+                    end
                 end
-            end
-            @comment if place.smallGridMode > 0 && rand() <= 0.1 # for debugging purposes
-                gsave()
-                setopacity(1.0)
-                sethue("blue")
-                fontsize(6)
-                textcentered(string(getSMG(person)), person.pos...)
-                grestore()
+                @comment if place.smallGridMode > 0 && rand() <= 0.1 # for debugging purposes
+                    gsave()
+                    setopacity(1.0)
+                    sethue("blue")
+                    fontsize(6)
+                    textcentered(string(getSMG(person)), person.pos...)
+                    grestore()
+                end
             end
         end
         # setopacity(1.0)
@@ -621,16 +617,13 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
 
     dt::Union{DataFrame,Nothing} = nothing
     if internalVisualize
-        # (scatter!([Point(getPos(person)) for person in people], color=[colorPerson(person) for person in people]))
-        # xs = [person.pos[1] for person in people]
-        # ys = [person.pos[2] for person in people]
-        # cs = [colorPerson(person) for person in people]
         visualize = true
         makieSave(0)
-
-        dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
-        run(`brishzq.zsh pbcopy $plotdir/all/`) # Use mpv to play the imgseq directly!
     end
+    if visTS
+        dt = DataFrame(Time=Float64[], Number=Int64[], Status=String[])
+    end
+    runi(`brishzq.zsh pbcopy $plotdir/`) # Alt: Use helpers.zsh 
 
     cEvent = nothing
     try
@@ -648,7 +641,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
                 makieSave(cEvent.time)
             end 
 
-            counts = insertPeople(dt, cEvent.time, people, visualize)
+            counts = insertPeople(dt, cEvent.time, people, visTS)
             if all(counts[s] == 0 for s in (Sick, RecoveredRemission))
                 sv0("Simulation has reached equilibrium.")
                 break
@@ -660,7 +653,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
         close(log_io) # flushes as well
     end
     # model.pq  # causes stackoverflow on VSCode displaying it
-    if visualize
+    if visTS
         plotTimeseries(dt, "$plotdir/timeseries.png")
     else
         bella()
@@ -674,10 +667,10 @@ function plotTimeseries(dt::DataFrame, dest)
         Geom.line(),
         Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...),
         Theme(
-            key_label_font_size=30pt,
-            key_title_font_size=37pt,
-            major_label_font_size=29pt,
-            minor_label_font_size=27pt,
+            key_label_font_size=28pt,
+            key_title_font_size=34pt,
+            major_label_font_size=28pt,
+            minor_label_font_size=26pt,
             line_width=2pt,
             background_color="white",
 
@@ -688,11 +681,12 @@ function plotTimeseries(dt::DataFrame, dest)
 
     ###
     begin
-        # run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
-        run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
+        # runi(`brishzq.zsh pbcopy $dest_dir`, wait=false)
+        runi(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
         sleep(1.0) # to make sure things have loaded succesfully
         # sout was useless
-        run(`brishzq.zsh serr ani-ts $dest_dir`, wait=false)
+        # runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=false)
+        runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=true)
     end
 
     bella()
@@ -709,7 +703,13 @@ function nextSicknessExp(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
+function execModel(; visualize=true, n=10^3, model, simDuration=1000, discrete_opt=nothing, kwargs...)
+
+    if ! isnothing(discrete_opt)
+        @warn "DEPRECATED: Setting discrete_opt from execModel is a back-compat API."
+        model.discrete_opt = discrete_opt
+    end
+
     took = @elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...)
     println("Took $(took) (with plotTimeseries)")
     global lastPeople, lastDt = ps, dt
@@ -723,7 +723,7 @@ function execModel(; visualize=true, n=10^3, model, simDuration=1000, kwargs...)
     if count_healthy > 0
         println("!!! There are still $count_healthy healthy people left in the simulation!")
     end
-    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == length(ps) "Total recovered and dead people don't match total people."
+    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == length(ps) "Total recovered, healthy, and dead people don't match total people. Either the simulation has been ended prematurely, or there is a bug."
 
     # return ps, dt
     nothing
@@ -856,7 +856,7 @@ function withMW(model_fn::Function, args... ; kwargs...)
     )
 end
 ## Models
-model1(μ=0.1 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; μ,nextSickness=nextSicknessExp))
+model1(μ=1/50 ; kwargs...) = execModel(; kwargs..., model=CoronaModel(; name="m1_1", μ,nextSickness=nextSicknessExp))
 
 function nsP1_2(model::CoronaModel, person::Person)::Float64
     @match getStatus(person) begin
@@ -867,7 +867,7 @@ function nsP1_2(model::CoronaModel, person::Person)::Float64
         -1.0
     end
 end
-m1_2(μ=0.1 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; μ,nextSickness=nsP1_2))
+m1_2(μ=0.1 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="m1_2",μ,nextSickness=nsP1_2))
 # Simulation ended at day 994.8028213815833
 # Took 430.67870536 (+vis)
 ###
@@ -887,10 +887,10 @@ nsP2_1_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick,), (H
 nsP2_2_1(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy,))
 nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, RecoveredRemission), (Healthy, Recovered))
 
-m2_1_1(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_1))
-m2_1_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
-m2_2_1(μ=1 / 10^2 ; n=10^2, discrete_opt=0.0, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; discrete_opt, name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
-m2_2_2(μ=1 / 10^2 ; n=10^2, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
+m2_1_1(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_1))
+m2_1_2(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
+m2_2_1(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; discrete_opt, name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
+m2_2_2(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
 # old tests:
 # Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.01 - 5ae4f090-2430-4868-b8d0-8322c62e23e1/all/001218.png
 # Simulation ended at day 458.51707686527175
@@ -962,6 +962,8 @@ m3_1_1(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick,), infec
 m3_1_2(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick,), infectables=(Healthy, Recovered))
 m3_2_1(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick, RecoveredRemission), infectables=(Healthy,))
 m3_2_2(args... ; kwargs...) = m3_g(args... ; kwargs..., infectors=(Sick, RecoveredRemission), infectables=(Healthy, Recovered))
+##
+m5() = withMW(m3_2_2,0.2; discrete_opt=1//24, visualize=true, c=500, initialPeople=gp_H_dV, isolationProbability=0.3, smallGridMode=80, daysInSec=1//4)
 ##
 # The End
 ##

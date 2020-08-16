@@ -15,6 +15,10 @@ InteractiveCodeSearch.CONFIG.interactive_matcher = `fzf --bind 'shift-up:toggle+
 ##
 macro comment(args...) end
 ##
+function runi(cmd ; kwargs...)
+    run(ignorestatus(cmd) ; kwargs...)
+end
+##
 # bello() = run(`brishz.dash redo2 2 bell-greencase`, wait=false)
 bello() = run(`brishz.dash awaysh bello`, wait=false)
 bellj() = run(`brishz.dash awaysh bellj`, wait=false)

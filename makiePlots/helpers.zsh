@@ -18,3 +18,6 @@ function makie-clean() {
 function makp() {
     z makiePlots ; fnswap printz-quoted reval onlc cd ; cd all && mpv-imgseq
 }
+function makt() {
+    z makiePlots ; fnswap printz-quoted reval onlc cd ; imgcat timeseries.png
+}
