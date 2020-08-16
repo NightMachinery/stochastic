@@ -791,7 +791,7 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     let w_size = rand(Uniform(40, 50))
         w3 = Workplace(; startTime=rand(Uniform(8 / 24, 9 / 24)),
         endTime=rand(Uniform(14 / 24, 16 / 24)),
-        eP=rand(Uniform(0.05, 1.0)),
+        eP=rand(Uniform(0.05, 0.07)),
         place=Place(; name="Office γ",
         smallGridMode = 10,
         width=w_size,
