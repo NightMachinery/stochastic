@@ -204,6 +204,22 @@ function insertPeople(dt::DataFrame, t, people, visualize)
     end
     counts
 end
+function event2aniTime(tNow)
+    # With the %f format specifier, the "2" is treated as the minimum number of characters altogether, not the number of digits before the decimal dot. 
+    mins = floor(tNow / 60)
+    secs = tNow - 60 * mins
+    @sprintf "%02d:%012.9f" mins secs 
+end
+function time2day(time::Number)
+    days = floor(Int, time)
+    rem = time - days
+    rem = floor(rem*3600*24)
+    hours = floor(rem / 3600)
+    rem -= hours*3600
+    mins = floor(rem/60)
+    # secs = rem - 60 * mins
+    @sprintf "#%03d $02d:%02d" days hours mins 
+end
 @copycode alertStatus begin
     # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
     sv1("$tNow: Person #$(person.id) is $(getStatus(person))")
@@ -384,7 +400,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         sethue("black")
         titlePos = (x = dw / 2, y = 15)
         settext("<span font='16' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
-        textcentered("Time of Last Snapshot = $tNow", titlePos.x, titlePos.y * 2 + 10)
+        textcentered("Time of Last Snapshot = $tNow ($(time2day(tNow)))", titlePos.x, titlePos.y * 2 + 10)
         translate(0, titlePos.y * 3 + 10)
 
         for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
@@ -399,12 +415,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
 
         # preview() # didn't work here, idk why
         # error("hi")
-    end
-    function event2aniTime(tNow)
-        # With the %f format specifier, the "2" is treated as the minimum number of characters altogether, not the number of digits before the decimal dot. 
-        mins = floor(tNow / 60)
-        secs = tNow - 60 * mins
-        @sprintf "%02d:%012.9f" mins secs 
     end
     function setStatus(tNow, person::Person, status::InfectionStatus)
         # person.status[] = status
@@ -546,6 +556,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             maybeGoToMarket(tNow, market, person)
         end
     end
+    ###
     if isnothing(initialPeople)
         people = [@>> Person(; id=i, currentPlace=model.centralPlace) randomizePos(0) randomizeSickness() for i in 1:n]
     else
@@ -560,9 +571,12 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             end
         end
     end
+    shuffle!(people) # so that people are assigned their workplaces randomly 
+    ###
     for person in people
         genMarketEvents(0, person)
     end
+    ###
     function scheduleWork(tNow, person::Person)
         @nodead
         tNext = tNow + restDuration(person.workplace)
@@ -578,13 +592,18 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
             end
         end
     end
+
+    employedN = 0
     for work in model.workplaces
         num = work.eP * n
-        for person::Person in people[1:num]
+        eS = (employedN + 1)
+        for person::Person in people[eS:(eS + num - 1)]
             person.workplace = work
             scheduleWork(0, person)
         end
+        employedN += num
     end
+    ###
     initCompleted = true
     recalcSickness(0, model.centralPlace)
 
@@ -735,7 +754,7 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     plotPos=(x = m1.place.plotPos.x + m1.place.width + hpad,
         y = (m1.place.plotPos.y)) 
     ))
-    m4 = Marketplace(; μg=(1/2), ag=(0.5 / 24), bg=(2 / 24),
+    m4 = Marketplace(; μg=(1 / 2), ag=(0.5 / 24), bg=(2 / 24),
     place=Place(; name="Bakery",
     width=12,
     height=12,
@@ -781,8 +800,8 @@ function market_test1(model_fn::Function, args... ; kwargs...)
 
     model_fn(args...; kwargs...,
     centralPlace,
-    marketplaces=[m1,m2,m3,m4],
-    workplaces=[w1,w2,w3]
+    marketplaces=[m1,m2,m3,m4]
+    ,workplaces=[w1,w2,w3],
     modelNameAppend=", $(@currentFuncName)"
     )
 end
