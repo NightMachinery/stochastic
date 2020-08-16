@@ -236,7 +236,7 @@ function isTracked(person::Person)
     person.id % 23 == 0
 end
 isolationColor = colorant"purple"
-function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
+function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualize::Bool=true, sleep::Bool=true, framerate::Int=30, daysInSec::Number=1, scaleFactor::Number=3, initialPeople::Union{AbstractArray{Person},Nothing,Function}=nothing, marketRemembersPos=true)
     startTime = time()
     ###
     if isa(initialPeople, Function)
@@ -794,7 +794,7 @@ function withMW(model_fn::Function, args... ; kwargs...)
         w1 = Workplace(; startTime=rand(Uniform(22/24, 23/24)),
         endTime=rand(Uniform(6 / 24, 7 / 24)),
         eP=rand(Uniform(0.05, 0.1)),
-        place=Place(; name="Office α (night shift)",
+        place=Place(; name="Night Office",
         width=w_size,
         height=w_size,
         plotPos=(x = centralPlace.plotPos.x,
@@ -807,7 +807,7 @@ function withMW(model_fn::Function, args... ; kwargs...)
         eP=rand(Uniform(0.2, 0.3)),
         place=Place(; name="Office β",
         smallGridMode=0.0,
-        width=260,
+        width=250,
         height=w_size,
         plotPos=(x = w1.place.plotPos.x + w1.place.width + hpad,
             y = w1.place.plotPos.y) 
