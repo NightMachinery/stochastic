@@ -122,7 +122,7 @@ function colorStatus(status::InfectionStatus)
     # end
 end
 function defaultNextConclusion()
-    rand(Uniform(4, 15))
+    rand(Uniform(7, 20))
 end
 function defaultHasDiedλ(p_recovery)
     function hasDied()
@@ -135,7 +135,7 @@ function defaultHasDiedλ(p_recovery)
     return hasDied
 end
 function defaultNextCompleteRecovery()
-    rand(Uniform(5, 7))
+    rand(Uniform(5, 15))
 end
 
 mutable struct CoronaModel{F1,F2,F3,F4,N <: Number}
@@ -161,12 +161,12 @@ function CoronaModel(; name="untitled", discrete_opt::N=0.0, centralPlace=nothin
     marketplaces=[], workplaces=[], smallGridMode=0.0, isolationProbability=0.0, μ=1.0, nextSickness::F4,
     pq=MutableBinaryMinHeap{SEvent}(),
     nextConclusion::F1=defaultNextConclusion,
-    hasDied::F2=defaultHasDiedλ(0.8),
+    hasDied::F2=defaultHasDiedλ(0.9),
     nextCompleteRecovery::F3=defaultNextCompleteRecovery
     ) where {F1,F2,F3,F4,N}
 
     if isnothing(centralPlace)
-        centralPlace = Place(; name="Central", width=500, height=500, plotPos=(x = 10, y = 10))
+        centralPlace = Place(; name="Central", width=550, height=550, plotPos=(x = 10, y = 10))
     end
     centralPlace.smallGridMode = smallGridMode
     CoronaModel{F1,F2,F3,F4,N}(name, discrete_opt, centralPlace, marketplaces, workplaces, isolationProbability, μ, pq, nextConclusion, hasDied, nextCompleteRecovery, nextSickness)
@@ -407,7 +407,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         rect(0, 0, dw, dh, :fill)
         sethue("black")
         titlePos = (x = dw / 2, y = 15)
-        settext("<span font='16' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
+        settext("<span font='12' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
         textcentered("Time of Last Snapshot = $tNow ($(time2day(tNow)))", titlePos.x, titlePos.y * 2 + 10)
         translate(0, titlePos.y * 3 + 0)
 
@@ -687,12 +687,12 @@ function plotTimeseries(dt::DataFrame, dest)
 
 
     ###
-    @comment begin
+    begin
         # run(`brishzq.zsh pbcopy $dest_dir`, wait=false)
         run(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
         sleep(1.0) # to make sure things have loaded succesfully
         # sout was useless
-        run(`brishzq.zsh serr ani-ts $dest_dir`, wait=true) # so when bellj goes out the result is actually viewable
+        run(`brishzq.zsh serr ani-ts $dest_dir`, wait=false)
     end
 
     bella()
@@ -753,8 +753,8 @@ function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
     genp_grid_hgap
 end
 gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
-## tmp markets
-function market_test1(model_fn::Function, args... ; kwargs...)
+## markets
+function withMW(model_fn::Function, args... ; kwargs...)
     vpad = 27 # should cover the titles, too
     hpad = 20
     centralPlace = Place(; name="Central", width=310, height=400, plotPos=(x = 10, y = 10))
