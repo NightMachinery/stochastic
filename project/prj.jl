@@ -794,7 +794,7 @@ function market_test1(model_fn::Function, args... ; kwargs...)
         w1 = Workplace(; startTime=rand(Uniform(22/24, 23/24)),
         endTime=rand(Uniform(6 / 24, 7 / 24)),
         eP=rand(Uniform(0.05, 0.1)),
-        place=Place(; name="Office α",
+        place=Place(; name="Office α (night shift)",
         width=w_size,
         height=w_size,
         plotPos=(x = centralPlace.plotPos.x,

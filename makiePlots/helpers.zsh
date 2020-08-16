@@ -13,5 +13,8 @@ function ani-ts() {
 }
 function makie-clean() {
     rm -r ~/Base/_Code/uni/stochastic/makiePlots/**/all(/)
-    rm ~/Base/_Code/uni/stochastic/makiePlots/**/log.txt
+    # rm ~/Base/_Code/uni/stochastic/makiePlots/**/log.txt
+}
+function makp() {
+    z makiePlots ; fnswap printz-quoted reval onlc cd ; cd all && mpv-imgseq
 }
