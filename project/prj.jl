@@ -293,7 +293,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
 
         translate(place.plotPos.x, place.plotPos.y)
         sethue("black")
-        text(place.name, 5, padTop - 6)
+        text(place.name, 0, padTop - 6)
         translate(0, padTop)
         setline(6)
         rect(0, 0, place.width, place.height, :stroke)
@@ -402,7 +402,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number=2, visual
         titlePos = (x = dw / 2, y = 15)
         settext("<span font='16' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
         textcentered("Time of Last Snapshot = $tNow ($(time2day(tNow)))", titlePos.x, titlePos.y * 2 + 10)
-        translate(0, titlePos.y * 3 + 10)
+        translate(0, titlePos.y * 3 + 0)
 
         for place in Iterators.flatten(((model.centralPlace,), model.workplaces, model.marketplaces))
             if !(place isa Place)
@@ -730,7 +730,7 @@ end
 gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
 ## tmp markets
 function market_test1(model_fn::Function, args... ; kwargs...)
-    vpad = 40 # should cover the titles, too
+    vpad = 27 # should cover the titles, too
     hpad = 20
     centralPlace = Place(; name="Central", width=310, height=400, plotPos=(x = 10, y = 10))
 
@@ -758,17 +758,17 @@ function market_test1(model_fn::Function, args... ; kwargs...)
     ))
     m4 = Marketplace(; μg=(1 / 2), ag=(0.5 / 24), bg=(2 / 24),
     place=Place(; name="Bakery",
-    width=12,
-    height=12,
+    width=30,
+    height=15,
     plotPos=(x = m2.place.plotPos.x + m2.place.width + hpad,
         y = (m2.place.plotPos.y)) 
     ))
-    # add bakery
-    local w1, w2, w3
-    let w_size = rand(Uniform(30, 50))
+    
+    local w1, w2, w3, w4, w5
+    let w_size = rand(Uniform(60, 80))
         w1 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24)),
         endTime=rand(Uniform(16 / 24, 23 / 24)),
-        eP=rand(Uniform(0.1, 0.2)),
+        eP=rand(Uniform(0.05, 0.1)),
         place=Place(; name="Office α",
         width=w_size,
         height=w_size,
@@ -776,34 +776,57 @@ function market_test1(model_fn::Function, args... ; kwargs...)
             y = (centralPlace.plotPos.y + centralPlace.height + vpad)) 
         ))
     end
-    let w_size = rand(Uniform(30, 50))
+    let w_size = rand(Uniform(90, 95))
         w2 = Workplace(; startTime=rand(Uniform(4 / 24, 11 / 24)),
         endTime=rand(Uniform(16 / 24, 23 / 24)),
         eP=rand(Uniform(0.2, 0.3)),
         place=Place(; name="Office β",
-        smallGridMode=7,
-        width=w_size,
+        smallGridMode=0.0,
+        width=260,
         height=w_size,
         plotPos=(x = w1.place.plotPos.x + w1.place.width + hpad,
             y = w1.place.plotPos.y) 
         ))
     end
-    let w_size = rand(Uniform(10, 20))
+    let w_size = rand(Uniform(40, 50))
         w3 = Workplace(; startTime=rand(Uniform(8 / 24, 9 / 24)),
         endTime=rand(Uniform(14 / 24, 16 / 24)),
-        eP=rand(Uniform(0.04, 0.08)),
+        eP=rand(Uniform(0.05, 1.0)),
         place=Place(; name="Office γ",
+        smallGridMode = 10,
         width=w_size,
         height=w_size,
         plotPos=(x = w2.place.plotPos.x + w2.place.width + hpad,
             y = w2.place.plotPos.y) 
         ))
     end
+    let w_size = rand(Uniform(70, 90))
+        w4 = Workplace(; startTime=rand(Uniform(6 / 24, 7.5 / 24)),
+        endTime=rand(Uniform(11 / 24, 12 / 24)),
+        eP=rand(Uniform(0.04, 0.08)),
+        place=Place(; name="Office δ",
+        width=w_size,
+        height=w_size,
+        plotPos=(x = w3.place.plotPos.x + w3.place.width + hpad,
+            y = w3.place.plotPos.y) 
+        ))
+    end
+    let w_size = rand(Uniform(50, 60))
+        w5 = Workplace(; startTime=rand(Uniform(8 / 24, 11 / 24)),
+        endTime=rand(Uniform(13 / 24, 18 / 24)),
+        eP=rand(Uniform(0.02, 0.05)),
+        place=Place(; name="Office ϵ",
+        width=w_size,
+        height=w_size,
+        plotPos=(x = m4.place.plotPos.x + m4.place.width + hpad,
+            y = m4.place.plotPos.y) 
+        ))
+    end
 
     model_fn(args...; kwargs...,
     centralPlace,
     marketplaces=[m1,m2,m3,m4]
-    ,workplaces=[w1,w2,w3],
+    ,workplaces=[w1,w2,w3,w4,w5],
     modelNameAppend=", $(@currentFuncName)"
     )
 end
