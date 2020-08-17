@@ -1,6 +1,8 @@
-#+TITLE: The Infectious Disease Model
+#+TITLE: My Julia Megarepo
 
-This repository contains a lot of my simulation course exercises and other experimentation. The things of interest is in it currently include:
+This repository contains my simulation course exercises and other experimentations. I am generally using it as my Julia scratchpad. I'll refactor out some of its parts when I should have the time.
+
+The things of interest in it currently include:
 
 * An elaborate infectious disease model (which is remarkable in that it runs in a continuous mode, unlike most simulations that run in discrete steps)
 
@@ -8,7 +10,7 @@ This repository contains a lot of my simulation course exercises and other exper
 
 You need Julia v1.5 installed. You can copy my environment from this [[https://github.com/NightMachinary/.shells/tree/0227fb3a76f963137b6c21834ba391d673ce8053/.julia/environments/v1.5][commit]]. The =.julia= directory needs to be in your =HOME= directory (i.e., at =~/.julia=).
 
-The model was tested with this [[https://github.com/batbone/stochastic/tree/b93f081a29d3ca6828fa817c0017ae8b12d6e362][commit]], though I recomment just using the latest commit.
+The model was tested with this [[https://github.com/batbone/stochastic/tree/9e3d3d5bbbb2c8975a1dc68aed9ef565c79534db][commit]], though I recommend just using the latest commit. Do not use the readme from that commit, always use the latest master commit for the readme.
 
 - Go to the project directory:
   ~cd ./project/~
