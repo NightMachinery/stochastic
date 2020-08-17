@@ -654,6 +654,7 @@ function plotTimeseries(dt::DataFrame, dest)
         # sout was useless
         # runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=false)
         runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=true)
+        runi(`brishzq.zsh makie-clean`, wait=true)
     end
 
     bella()
@@ -716,7 +717,7 @@ function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
 end
 gp_H_dV = gg1(; gaps=vcat([(i, j) for i in 20:22 for j in 1:100], [(i, j) for i in 23:100 for j in 9:11]))
 ## markets
-function withMW(model_fn::Function, args... ; kwargs...)
+function withMW(model_fn::Function, args... ; oneMarketMode=false, noWork=false, kwargs...)
     vpad = 27 # should cover the titles, too
     hpad = 20
     centralPlace = Place(; name="Central", width=310, height=400, plotPos=(x = 10, y = 10))
@@ -809,11 +810,20 @@ function withMW(model_fn::Function, args... ; kwargs...)
             y = m4.place.plotPos.y) 
         ))
     end
-    
+
+    markets = [m1,m2,m3,m4]
+    if oneMarketMode
+        markets = [m3]
+    end
+    workplaces=[w1,w2,w3,w4,w5]
+    if noWork
+        workplaces=[]
+    end
+
     model_fn(args...; kwargs...,
     centralPlace,
-    marketplaces=[m1,m2,m3,m4]
-    ,workplaces=[w1,w2,w3,w4,w5],
+    marketplaces=markets
+    ,workplaces=workplaces,
     modelNameAppend=", $(@currentFuncName)"
     )
 end

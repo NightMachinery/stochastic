@@ -12,7 +12,8 @@ function ani-ts() {
     bello
 }
 function makie-clean() {
-    rm -r ~/Base/_Code/uni/stochastic/makiePlots/**/all(/)
+    ## Beware of using this when running multiple instances of the model. The incomplete data will get deleted, too.
+    # rm -r ~/Base/_Code/uni/stochastic/makiePlots/**/all(/)
     # rm ~/Base/_Code/uni/stochastic/makiePlots/**/log.txt
 }
 function makp() {
@@ -20,4 +21,19 @@ function makp() {
 }
 function makt() {
     z makiePlots ; fnswap printz-quoted reval onlc cd ; imgcat timeseries.png
+}
+function tlg-clean-copied() {
+    local text="$*"
+    if [[ "$text" =~ '\[[^]]*\]\s*((.|\n)*)' ]] ; then
+       text="$match[1]"
+    fi
+    print -nr -- "$text"
+}
+function tlg-clean-paste() {
+    tlg-clean-copied "$(pbpaste)"
+}
+function makpl() {
+    local d="$HOME/tmp/garden/$(bottomdir "$(tlg-clean-paste)")"
+
+    less "$d/log.txt"
 }

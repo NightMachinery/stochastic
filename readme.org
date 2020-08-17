@@ -1,0 +1,81 @@
+#+TITLE: The Infectious Disease Model
+
+This repository contains a lot of my simulation course exercises and other experimentation. The things of interest is in it currently include:
+
+* An elaborate infectious disease model (which is remarkable in that it runs in a continuous mode, unlike most simulations that run in discrete steps)
+
+** Quickstart: The Infectious Disease Model
+
+You need Julia v1.5 installed. You can copy my environment from this [[https://github.com/NightMachinary/.shells/tree/0227fb3a76f963137b6c21834ba391d673ce8053/.julia/environments/v1.5][commit]]. The =.julia= directory needs to be in your =HOME= directory (i.e., at =~/.julia=).
+
+The model was tested with this [[https://github.com/batbone/stochastic/tree/b93f081a29d3ca6828fa817c0017ae8b12d6e362][commit]], though I recomment just using the latest commit.
+
+- Go to the project directory:
+  ~cd ./project/~
+- Start a Julia REPL:
+  ~julia~
+- Source the code:
+  ~include("./prj.jl")~
+- Now you can run the models. There are a few sample runs with the command that runs them in the project's Telegram [[https://t.me/InfectiousModel][channel]], since Github doesn't show videos. I have also included a few screenshots below.
+
+*** Screenshots
+**** ~withMW(m3_2_1,0.2; discrete_opt=1//24, visualize=true, c=100, initialPeople=gp_H_dV, isolationProbability=0.9, smallGridMode=0, daysInSec=1, simDuration=3000, tracking=true)~
+
+See full [[https://t.me/InfectiousModel/71][video]].
+
+[[file:readme.org_imgs/20200817_170159_YrPf7a.png]]
+[[file:readme.org_imgs/20200817_170215_9mnH1i.png]]
+
+**** ~withMW(m3_1_2,0.2; discrete_opt=1//24, visualize=true, c=500, isolationProbability=0.3, smallGridMode=10, daysInSec=10, simDuration=1500, tracking=true)~
+
+See full [[https://t.me/InfectiousModel/68][video]].
+
+[[file:readme.org_imgs/mpv-shot0001.jpg]]
+[[file:readme.org_imgs/20200817_170448_0pvUbq.png]]
+
+* A happily-colored ising model
+
+The code is at [[file:exercises/ising.jl]]. The generated pictures and videos are at [[file:art/ising/]].
+
+# Github can't parse `"`, or space, or prob a thousand other things ...
+# [[file:art/ising/flashReverse/animateising(colormap="D4",initsleep=1,framesleep=0.15)_H265_ising_(strongest).mp4]]
+
+[[file:readme.org_imgs/ising_d4.mp4]]
+
+[[file:art/ising/d4_rev.png]]
+
+[[file:art/ising/intense_pink.png]]
+
+* An image redrawing filter using Poisson processes
+
+The code needs refactoring, it's currently at [[file:jo3/pprocessTest.jl][line 108, @plot drawP2D(G=(λ) -> imgrate ...]]. You can see examples at [[file:art/2d/]]. Most generated files have the code that generated them as their filename, or in a companion file with the same name as them. These code fragments might still have used an older API or a global variable, so they might not be copy-pasteable.
+
+[[file:readme.org_imgs/20200817_181209_T1fIpC.png]]
+
+[[file:readme.org_imgs/20200817_181229_8ZwVZQ.png]]
+
+[[file:readme.org_imgs/20200817_181039_EHCgcR.png]]
+
+[[file:readme.org_imgs/20200817_182034_zli1Dr.png]]
+
+[[file:readme.org_imgs/20200817_180422_Ps0b2O.png]]
+
+[[file:readme.org_imgs/20200817_180544_HUj7eO.png]]
+
+* Misc stuff
+
+You can generally browse [[file:art/]] to see some stuff generated here.
+
+[[file:art/S2.png]]
+
+[[file:art/photo_2020-04-26_02-58-12.jpg]]
+
+[[file:art/S1_Eye_C1.png]]
+
+[[file:art/photo_2020-04-26_02-58-21.jpg]]
+
+[[file:art/stair/seismic.png]]
+
+[[file:art/triangles/flag.png]]
+
+[[file:art/photo_2020-04-26_02-58-17.jpg]]
