@@ -5,3 +5,12 @@ We can save events with the format =duration since last event\nevent= and then r
 Change background to reflect time of day. Or just show it in the title.
 
 Perhaps self-isolated people shouldn't move and isolationP should be placeLocal.
+
+* Old Benchmarks
+#+BEGIN_QUOTE
+    # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
+    # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
+    # storing allData 10x slowed to ~10
+    # using observables 10x slowed to ~75
+    # abandoning observables (+makie scene): 0.973560406
+#+END_QUOTE

@@ -1,6 +1,6 @@
+# We are assuming the unit time is one day.
+
 # module SIR
-# TODO Dead people shouldn't move
-# TODO Move smallGridMode from Model to Place
 using Luxor
 ##
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
@@ -12,18 +12,11 @@ using ForceImport
 @force using Luxor
 using MLStyle.AbstractPatterns: literal
 include("../common/event.jl")
-#
-# We are assuming the unit time is one day.
-
-sceneSize = (2100, 1500)
+##
 @enum InfectionStatus Healthy = 1 Recovered RecoveredRemission Sick Dead 
 MLStyle.is_enum(::InfectionStatus) = true
 # tell the compiler how to match it
 MLStyle.pattern_uncall(e::InfectionStatus, _, _, _, _) = literal(e)
-###
-# daySegments = 864 # 86400 seconds in a day
-# exp2geomP(λ) = λ/daySegments
-# geomTrial(λ) = rand() < (exp2geomP(λ))
 ###
 
 mutable struct Place{T} 
@@ -57,7 +50,7 @@ mutable struct Workplace
     place::Place
     startTime::Float64
     endTime::Float64
-    eP::Float64 # The probability of a person working there
+    eP::Float64 # The proportion of total population working there
     function Workplace(; place, startTime, endTime, eP)
         new(place, startTime, endTime, eP)
     end
@@ -71,13 +64,11 @@ end
     return res
 end
 
-mutable struct Person # <: AbstractAgent
+mutable struct Person
     id::Int
-    pos::NamedTuple{(:x, :y),Tuple{Float64,Float64}} # NTuple{2,Float64} # Node{NTuple{2,Float64}}
-    # vel::NTuple{2, Float64}
-
-    status::InfectionStatus # Node{InfectionStatus}
-    currentPlace::Union{Place,Nothing} # Node{Place} # Union{Place,Nothing}
+    pos::NamedTuple{(:x, :y),Tuple{Float64,Float64}}
+    status::InfectionStatus
+    currentPlace::Union{Place,Nothing}
     workplace::Union{Workplace,Nothing}
     isIsolated::Bool
     sickEvent::Union{Int,Nothing}
@@ -98,14 +89,11 @@ end
 function colorPerson(person::Person)
     colorStatus(getStatus(person))
 end
-function statusFromString_(status::String)
-    eval(Meta.parse(status))
-end
-@defonce const statusFromString = memoize(statusFromString_)
+# function statusFromString_(status::String)
+#     eval(Meta.parse(status))
+# end
+# @defonce const statusFromString = memoize(statusFromString_)
 function colorStatus(status::InfectionStatus)
-    # we'll need to disable the border to be able to hide points by using α=0
-    # α = 0.6 # we need to use alpha=vector in Gadfly:
-    # `plot(x=[1,2],y=[4,5], color=[RGBA(1,1,1,1), RGB(1,0,1)], alpha=[1,0.1])`
     @match status  begin
         Sick => RGB(1, 0, 0) # :red    
         Healthy => RGB(0, 1, 0) # :green
@@ -113,13 +101,6 @@ function colorStatus(status::InfectionStatus)
         RecoveredRemission => RGB(1, 0.7, 0) # RGB(1, 1, 0) # :yellow
         Recovered => RGB(0, 1, 1) # :blue
     end
-    # @match status  begin
-    #     Sick => RGBAf0(1, 0, 0, α) # :red    
-    #     Healthy => RGBAf0(0, 1, 0, α) # :green
-    #     Dead => RGBAf0(0, 0, 0, α) # :black
-    #     RecoveredRemission => RGBAf0(1, 1, 0, α) # :yellow
-    #     Recovered => RGBAf0(0, 1, 1, α) # :blue
-    # end
 end
 function defaultNextConclusion()
     rand(Uniform(7, 20))
@@ -217,7 +198,6 @@ function time2day(time::Number)
     @sprintf "#%03d %02d:%02d" days hours mins 
 end
 @copycode alertStatus begin
-    # beep when people die? :D In general, producing a sound plot from this sim might be that much more novel ...
     sv1("$tNow: Person #$(person.id) is $(getStatus(person))")
 end
 @copycode nodead begin
@@ -276,7 +256,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
     lastTime = 0
     function drawPlace(place::Place)
         # be sure to output images with even width and height, or encoding them will need padding
-        # old_matrix = getmatrix()
         gsave()
         padTop = 16
 
@@ -320,12 +299,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
                 # OVERLAY PHASE
                 if tracking && isTracked(person) # for debugging purposes
                     setopacity(1.0)
-                    # setmode("overlay") # didn't work
-                    # fontsize(7)
-
-                    # textcentered(string(person.id), person.pos...)
-
-                    # sethue("black")
+                    # setmode("overlay") # didn't work well
                     if person.isIsolated
                         my_color = isolationColor
                     else
@@ -365,9 +339,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
                 end
             end
         end
-        # setopacity(1.0)
-        # clipreset()
-        # setmatrix(old_matrix)
         grestore()
     end
     function makieSave(tNow)
@@ -398,9 +369,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
         dh = 600
         Drawing(dw * scaleFactor, dh * scaleFactor, dest) # HARDCODED
         scale(scaleFactor)
-        # background("white")
-        sethue("white")
-        rect(0, 0, dw, dh, :fill)
+        background("white")
         sethue("black")
         titlePos = (x = dw / 2, y = 15)
         settext("<span font='12' ><tt>$runDesc</tt></span>", Point(titlePos.x, titlePos.y) ; markup=true, halign="center", valign="center")
@@ -421,7 +390,6 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
         # error("hi")
     end
     function setStatus(tNow, person::Person, status::InfectionStatus)
-        # person.status[] = status
         person.status = status
         if status == Sick
             if model.isolationProbability > 0.0 && initCompleted
@@ -466,7 +434,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
         end
         if discrete_opt > 0
             if ! (isempty(model.pq)) 
-                nEvent, useless = top_with_handle(model.pq) # first(model.pq)
+                nEvent, useless = top_with_handle(model.pq) # first(model.pq) didn't work
                 if nEvent.time - lastRecalcTime < discrete_opt
                     return # we can take the hit
                 end
@@ -580,7 +548,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
     ###
     function scheduleWork(tNow, person::Person)
         @nodead
-        tNext = tNow # + restDuration(person.workplace)
+        tNext = tNow
         dayT = tNow - floor(tNow)
         if dayT <= person.workplace.startTime
             tNext += person.workplace.startTime - dayT
@@ -652,13 +620,13 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
         sv0("Simulation ended at day $(cEvent.time) and took $(time() - startTime).")
         close(log_io) # flushes as well
     end
-    # model.pq  # causes stackoverflow on VSCode displaying it
     if visTS
         plotTimeseries(dt, "$plotdir/timeseries.png")
     else
         bella()
     end
-    people, dt
+    return people, dt
+    # return model.pq  # causes stackoverflow on VSCode displaying it
 end
 function plotTimeseries(dt::DataFrame, dest)
     dest_dir = dirname(dest)
@@ -667,13 +635,12 @@ function plotTimeseries(dt::DataFrame, dest)
         Geom.line(),
         Scale.color_discrete_manual([colorStatus(status) for status in instances(InfectionStatus)]...),
         Theme(
-            key_label_font_size=28pt,
-            key_title_font_size=34pt,
-            major_label_font_size=28pt,
-            minor_label_font_size=26pt,
+            key_label_font_size=29pt,
+            key_title_font_size=36pt,
+            major_label_font_size=29pt,
+            minor_label_font_size=28pt,
             line_width=2pt,
             background_color="white",
-
             # alphas = [1],
         )
     ) |> PNG(dest, 26cm, 18cm, dpi=150)
@@ -681,9 +648,9 @@ function plotTimeseries(dt::DataFrame, dest)
 
     ###
     begin
-        # runi(`brishzq.zsh pbcopy $dest_dir`, wait=false)
         runi(`brishzq.zsh awaysh brishz-all source $(ENV["HOME"])/Base/_Code/uni/stochastic/makiePlots/helpers.zsh`, wait=true) # We have to free the sending brish or it'll deadlock
         sleep(1.0) # to make sure things have loaded succesfully
+
         # sout was useless
         # runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=false)
         runi(`brishzq.zsh serr ani-ts $dest_dir`, wait=true)
@@ -695,7 +662,7 @@ end
 
 firstbell()
 ## Executors
-# serverVerbosity = 0
+serverVerbosity = 0
 function nextSicknessExp(model::CoronaModel, person::Person)::Float64
     if getStatus(person) == Healthy
         rand(Exponential(inv(model.μ)))
@@ -706,29 +673,24 @@ end
 function execModel(; visualize=true, n=10^3, model, simDuration=1000, discrete_opt=nothing, kwargs...)
 
     if ! isnothing(discrete_opt)
-        @warn "DEPRECATED: Setting discrete_opt from execModel is a back-compat API."
+        @warn "Setting discrete_opt from execModel is a back-compat API."
         model.discrete_opt = discrete_opt
     end
 
     took = @elapsed ps, dt = runModel(; model=model, simDuration, n=n, visualize=visualize, kwargs...)
     println("Took $(took) (with plotTimeseries)")
     global lastPeople, lastDt = ps, dt
-    # 0.765242 seconds (14.47 M allocations: 459.282 MiB, 5.13% gc time)
-    # Parametrizing nextSickness: 0.616788 seconds (12.02 M allocations: 230.663 MiB, 3.71% gc time)
-    # storing allData 10x slowed to ~10
-    # using observables 10x slowed to ~75
-    # abandoning observables (+makie scene): 0.973560406
 
     count_healthy = count(ps) do p p.status == Healthy end
     if count_healthy > 0
         println("!!! There are still $count_healthy healthy people left in the simulation!")
     end
-    @assert (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) == length(ps) "Total recovered, healthy, and dead people don't match total people. Either the simulation has been ended prematurely, or there is a bug."
-
-    # return ps, dt
-    nothing
+    if (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) != length(ps) 
+        @warn "Total recovered, healthy, and dead people don't match total people. Either the simulation has been ended prematurely, or there is a bug."
+    end
+    return nothing
 end
-    ## Spaces
+## Spaces
 function gg1(; gw=20, gh=40, gaps=[(i, j) for i in 20:22 for j in 1:gw])
     function genp_grid_hgap(model::CoronaModel)
         cc = 0
@@ -847,7 +809,7 @@ function withMW(model_fn::Function, args... ; kwargs...)
             y = m4.place.plotPos.y) 
         ))
     end
-    # @infiltrate
+    
     model_fn(args...; kwargs...,
     centralPlace,
     marketplaces=[m1,m2,m3,m4]
@@ -868,8 +830,6 @@ function nsP1_2(model::CoronaModel, person::Person)::Float64
     end
 end
 m1_2(μ=0.1 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="m1_2",μ,nextSickness=nsP1_2))
-# Simulation ended at day 994.8028213815833
-# Took 430.67870536 (+vis)
 ###
 function nsP2_g(model::CoronaModel, person::Person, infectors, infectables)::Float64
     if ! (getStatus(person) in infectables)
@@ -889,15 +849,8 @@ nsP2_2_2(model::CoronaModel, person::Person) = nsP2_g(model, person, (Sick, Reco
 
 m2_1_1(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_1))
 m2_1_2(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_1_2))
-m2_2_1(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; discrete_opt, name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
+m2_2_1(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_1))
 m2_2_2(μ=1 / 10^2 ; n=10^3, kwargs...) = execModel(; n, kwargs..., model=CoronaModel(; name="$(@currentFuncName)¦ n=$n, μ=$(μ)", μ, nextSickness=nsP2_2_2))
-# old tests:
-# Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.01 - 5ae4f090-2430-4868-b8d0-8322c62e23e1/all/001218.png
-# Simulation ended at day 458.51707686527175
-# Took 528.464985147
-# Key frame saved: /Users/evar/Base/_Code/uni/stochastic/makiePlots/m2_2_2¦ n=1000, μ=0.001 - 8bbcbc15-b331-4e3b-a153-b8082e87291f/all/000854.png
-# Simulation ended at day 323.698439247161
-# Took 451.879709406
 ###
 function getSMG(person::Person)
     if person.currentPlace.smallGridMode > 0
@@ -923,14 +876,10 @@ end
 function f_ij2(model::CoronaModel, a::Person, b::Person, c)::Float64
     d = distance(a, b)
     res = δdc(d, c) * (model.μ / (1 + d))
-    # if res > 0
-    #     @labeled d
-    #     @labeled res
-# end
     return res
 end
 
-function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], workplaces=[], modelNameAppend="", smallGridMode=0.0, kwargs...)
+function m3_g(μ=1 / 10^1 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability=0.0,infectors, infectables, f_ij=f_ij2, centralPlace=nothing, marketplaces=[], workplaces=[], modelNameAppend="", smallGridMode=0.0, kwargs...)
     function nsP3_g(model::CoronaModel, person::Person)::Float64
         if ! (getStatus(person) in infectables)
             return -1
@@ -949,7 +898,6 @@ function m3_g(μ=1 / 10^3 ; n=10^3, discrete_opt=1.0, c=30, isolationProbability
             @warn "Infinite rate observed!"
             return 0
         end
-        # @labeled totalRate
         rd = Exponential(inv(totalRate))
         return rand(rd)
     end
