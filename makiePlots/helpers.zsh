@@ -22,18 +22,9 @@ function makp() {
 function makt() {
     z makiePlots ; fnswap printz-quoted reval onlc cd ; imgcat timeseries.png
 }
-function tlg-clean-copied() {
-    local text="$*"
-    if [[ "$text" =~ '\[[^]]*\]\s*((.|\n)*)' ]] ; then
-       text="$match[1]"
-    fi
-    print -nr -- "$text"
-}
-function tlg-clean-paste() {
-    tlg-clean-copied "$(pbpaste)"
-}
 function makpl() {
     local d="$HOME/tmp/garden/$(bottomdir "$(tlg-clean-paste)")"
 
+    cd "$d"
     less "$d/log.txt"
 }

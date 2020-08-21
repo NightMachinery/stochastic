@@ -26,6 +26,7 @@ The model was tested with this [[https://github.com/batbone/stochastic/tree/9e3d
 See full [[https://t.me/InfectiousModel/71][video]].
 
 [[file:readme.org_imgs/20200817_170159_YrPf7a.png]]
+
 [[file:readme.org_imgs/20200817_170215_9mnH1i.png]]
 
 **** ~withMW(m3_1_2,0.2; discrete_opt=1//24, visualize=true, c=500, isolationProbability=0.3, smallGridMode=10, daysInSec=10, simDuration=1500, tracking=true)~
@@ -33,6 +34,7 @@ See full [[https://t.me/InfectiousModel/71][video]].
 See full [[https://t.me/InfectiousModel/68][video]].
 
 [[file:readme.org_imgs/mpv-shot0001.jpg]]
+
 [[file:readme.org_imgs/20200817_170448_0pvUbq.png]]
 
 * A happily-colored ising model

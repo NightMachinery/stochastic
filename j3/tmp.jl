@@ -1,3 +1,5 @@
+using  Distributions
+##
 p = [[6 5 3 1]
     [3 6 2 2]
     [3 4 3 1]]
@@ -12,7 +14,6 @@ rb = mapslices(r, dims=[2]) do x
     s1, s2 = x
     s1 >= s2
 end
-
 # good macros here https://gist.github.com/MikeInnes/8299575
 more(content) = more(repr("text/plain", content))
 # using Markdown
