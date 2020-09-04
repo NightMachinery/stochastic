@@ -19,7 +19,7 @@ end
 
 function Q22()
     while true
-        res = √(2rand())
+        res = √(2rand()) # cdf_g = (x^2)/2
         if (rand() <= (Q22_pdf(res) / (res * (4.45))))
             return res
         end

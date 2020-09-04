@@ -1,5 +1,5 @@
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
-using Random
+using Random, DataStructures
 
 include("../common/event.jl")
 
@@ -15,7 +15,7 @@ mutable struct Server
     queueCheckExpirations::Deque{Function}
 end
 
-function serverSimple(callback ; cores=3, rd=Uniform(1, 2), name="Unnamed")
+function serverSimple(callback ; cores=3, rd=Uniform(0, 1), name="Unnamed")
     Server(0, cores, rd, callback, name, Deque{Function}())
 end
 
@@ -37,7 +37,7 @@ function serverMaybeProcess(pq, tNow, server::Server)
         else
             # expired
             # sv1("$(serverStr(server)) updated because the service requester had already left ...")
-            serverMaybeProcess(pq, tNow, server) # redundant?
+            serverMaybeProcess(pq, tNow, server)
         end
     end
 end
@@ -79,10 +79,12 @@ function stest1()
     end
     
     iAmNth = 0
-    customerLeaveD() = rand(Exponential(1)) 
+    customerLeaveD() = rand(Uniform(0, 1)) # rand(Exponential(1)) 
     leavers = Deque{Int}()
 
-    producer(pq, 0, VectorRd(nhPP(100, (t) -> t / 2, 0, 10), 11.1) # Exponential(inv(3)) # use nonhomo Poisson for entering
+    # VectorRd(nhPP(100, (t) -> 10, 0, 100), 101.1)
+    producer(pq, 0,  Exponential(inv(10)) # use nonhomo Poisson for entering
+
     , function (pq, tNow)
         iAmNth += 1
         iAmNth_me = iAmNth # we need to save this
@@ -103,7 +105,7 @@ function stest1()
             return (! haveILeaved)
         end
 
-    end ; tEnd=10, arrivalDist=true)
+    end ; tEnd=100, arrivalDist=true)
 
     while ! (isempty(pq))
         cEvent = pop!(pq)
@@ -111,6 +113,8 @@ function stest1()
         cEvent.callback(pq, cEvent.time)
     end
     @labeled leavers
+    @labeled length(leavers)
+    @labeled iAmNth
     println("The End!")
     pq 
 end

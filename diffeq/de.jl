@@ -45,3 +45,9 @@ function u(; ts=-20:0.01:40, size=0.3)
     @exfiltrate
     return nothing
 end
+##
+plot(sol_lo, vars=(0, 1, 3))
+
+plot!(sol_lo2, vars=(0, 1, 3))
+
+plot!(sol_lo3, vars=(0, 1, 3))

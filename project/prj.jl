@@ -623,7 +623,7 @@ function runModel(; model::CoronaModel, n::Int=10, simDuration::Number, visualiz
     if visTS
         plotTimeseries(dt, "$plotdir/timeseries.png")
     else
-        bella()
+        bello()
     end
     return people, dt
     # return model.pq  # causes stackoverflow on VSCode displaying it
@@ -686,7 +686,7 @@ function execModel(; visualize=true, n=10^3, model, simDuration=1000, discrete_o
     if count_healthy > 0
         println("!!! There are still $count_healthy healthy people left in the simulation!")
     end
-    if (count_healthy + sum(1 for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead))) != length(ps) 
+    if (count_healthy + length(collect(nothing for p in ps if (getStatus(p) == Recovered || getStatus(p) == Dead)))) != length(ps) 
         @warn "Total recovered, healthy, and dead people don't match total people. Either the simulation has been ended prematurely, or there is a bug."
     end
     return nothing

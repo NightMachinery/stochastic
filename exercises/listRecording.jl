@@ -18,7 +18,7 @@ function updateConf(pv, conf, u1)
     end
     return req
 end
-function listRecording(; requests=100, pv, runs=10^3)
+function listRecording(; requests=1000, pv, runs=10^3)
     @assert sum(pv) == 1
     n = length(pv)
     uSums = [] 
@@ -52,6 +52,7 @@ function listRecording(; requests=100, pv, runs=10^3)
 
     reqSums_c_mean_direct = reqSums_mean + c * (mean(uSums) - uSums_real_mean)
 
+    @labeled reqSums[1]
     @labeled c
     @labeled reqSums_mean
     @labeled reqSums_c_mean
@@ -65,6 +66,7 @@ end
 
 # p = [1 // 10, 3 // 10, 4 // 10, 36 // 1000, 98 // 1000, 5 // 1000]
 p = [ 45 // 100, 45 // 100, 1 // 30, 1 // 30]
+p = [ 0.02, 0.02, 0.02, 0.02, 0.92 ]
 if sum(p) < 1
     push!(p, 1 - sum(p))
 end
