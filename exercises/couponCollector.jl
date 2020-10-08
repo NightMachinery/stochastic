@@ -44,3 +44,5 @@ EN(; ns=[3,7], ps=[0.9,0.1])
 #         [0.9, 0.1]
 # mean(EN_givenTs_samples) =>
 #         69.97309050731829
+
+EN(; ns=[i^2 for i in 1:5], ps=[0.2 for i in 1:5])

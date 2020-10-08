@@ -105,7 +105,7 @@ function stest1()
             return (! haveILeaved)
         end
 
-    end ; tEnd=100, arrivalDist=true)
+    end ; tEnd=100, arrivalDist=false)
 
     while ! (isempty(pq))
         cEvent = pop!(pq)

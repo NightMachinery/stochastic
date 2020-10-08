@@ -83,3 +83,7 @@ You can generally browse [[file:art/]] to see some stuff generated here.
 [[file:art/triangles/flag.png]]
 
 [[file:art/photo_2020-04-26_02-58-17.jpg]]
+
+* Licenses
+
+Dual-licensed under MIT and GPL v3 or later. The generated media are also licensed under CC0.

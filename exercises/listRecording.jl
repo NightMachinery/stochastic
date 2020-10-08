@@ -1,6 +1,6 @@
 (@isdefined SunHasSet) || begin include("../common/startup.jl") ; println("Using backup startup.jl.") end
 
-using Random
+using Random, Statistics
 
 
 function initConf(n)
