@@ -5,8 +5,7 @@ klein = [0 1 2 3;
 		 3 2 1 0]
 # parse(Int,"032301210"; base=4) == 60516
 
-function fm()
-    sz = 4
+function fm(sz = 4)
     esz = sz - 1
     tsz = (esz^2)
 
@@ -16,7 +15,7 @@ function fm()
 	tablecodeStr = string(tablecode; base=sz, pad=tsz) # string((0:(esz)...,))
 	table = reshape(map(collect(tablecodeStr)) do el
 		parse(Int, el)
-		end, 3,3)
+		end, esz,esz)
 	table = vcat([0:esz;]', hcat([1:esz;], table))
 	# sa(table)
     end
@@ -64,19 +63,36 @@ function fm()
 	end
 
 	foundMonoids = 0
+
     for tablecode in 0:(sz^(tsz) - 1)
 		table = createTable(tablecode)
+
+		# ## q1.b
+		# if ! (! isempty(getInv(table, tableGet(table, 1,2))) && isempty(getInv(table, tableGet(table, 2, 1))))
+		# 		# st(table)
+		# 		continue
+		# end
+		# ##
+
 		if isAssoc(table; verbose=false)
-			# st(table)
 			foundMonoids += 1
+			
 			# if table == klein
 			# 	println("klein found at $tablecode")
 			# end
 			## q1.b
-			if ! isempty(getInv(table, tableGet(table, 1,2))) # && isempty(getInv(table, tableGet(table, 2, 1))) 
-				st(table)
-			end
+			# if ! isempty(getInv(table, tableGet(table, 1,2))) && isempty(getInv(table, tableGet(table, 2, 1))) 
+			# 	st(table)
+			# end
+			## q5
+			# for i in 1:esz
+			# 	if tableGet(table, i, i) == i
+			# 		@goto skip
+			# 	end
+			# end
 			##
+			st(table)
+			@label skip
 		end
 	end
 
@@ -86,5 +102,28 @@ function fm()
 end
 ##
 fm()
+# BenchmarkTools.Trial: 
+#   memory estimate:  292.25 MiB
+#   allocs estimate:  3410223
+#   --------------
+#   minimum time:     209.150 ms (6.61% GC)
+#   median time:      250.114 ms (7.66% GC)
+#   mean time:        252.103 ms (7.50% GC)
+#   maximum time:     336.619 ms (6.04% GC)
+#   --------------
+#   samples:          20
+#   evals/sample:     1
+##
+# BenchmarkTools.Trial: 
+#   memory estimate:  826.14 MiB
+#   allocs estimate:  8075427
+#   --------------
+#   minimum time:     460.583 ms (10.87% GC)
+#   median time:      479.842 ms (11.21% GC)
+#   mean time:        490.879 ms (10.98% GC)
+#   maximum time:     564.568 ms (10.93% GC)
+#   --------------
+#   samples:          11
+#   evals/sample:     1
 ##
 isAssoc(klein) 
