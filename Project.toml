@@ -1,0 +1,6 @@
+name = "Stochastic"
+uuid = "7ffb7f3e-9828-4abe-b1a5-3d53772dc7f8"
+authors = ["NightMachinary <rudiwillalwaysloveyou@gmail.com>"]
+version = "0.1.0"
+
+[deps]

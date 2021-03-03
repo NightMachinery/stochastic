@@ -1,3 +1,5 @@
+include("./physics.jl")
+##
 ϵ0 = 8.85 * 10 * -12
 e_k = 8.99 * 10^9
 FE(q1, q2, r)::Number = e_k * (abs(q1) * abs(q2) / abs2(r))
@@ -37,6 +39,13 @@ f31 = FVE(q3, q1)
 f32 = FVE(q3, q2)
 f34 = FVE(q3, q4)
 f3net = f31 + f32 + f34
+##
+a = 5cm
+q1 = Particle(charge=100u"nC", position=[0m, a])
+q2 = Particle(charge=-100u"nC", position=[a, a])
+q3 = Particle(charge=200u"nC", position=[0m, 0m])
+q4 = Particle(charge=-200u"nC", position=[a, 0m])
+@labeled netForce(electricForce, q3, q1, q2, q4)
 ##
 r_core = 4 * 10^-15
 fee = FE(q_e, q_e, r_core) 
