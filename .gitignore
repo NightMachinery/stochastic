@@ -10,4 +10,5 @@ tmp.png
 tmp.txt
 .ionide/
 
-.fake
+.fakeplots
+timetracker/plots
