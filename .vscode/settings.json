@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/Users/evar/anaconda/bin/python"
+    "python.pythonPath": "/Users/evar/anaconda/bin/python",
+    "julia.environmentPath": "/Users/evar/.julia/environments/v1.5"
 }

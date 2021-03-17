@@ -1,3 +1,5 @@
+include("./physics.jl")
+##
 using SymPy 
 qn = neutralParticle([0.0m, 0.0m])
 @vars d Q real=true

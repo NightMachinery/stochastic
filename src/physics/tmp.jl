@@ -29,4 +29,123 @@ he_V = vecθ(1.423e7m / s, 0)
 ni_V = -he_V * he_m / tho_m
 @labeled vec2θ(ni_V)
 @labeled ke(ni_m, ni_V) + ke(he_m, he_V)
+## 22.04
+v0 = 18m / s
+f = (1.5 * 1.4e-7)N
+m0 = 1.3e-10kg
+a = f / m0
+l = 1.6cm
+t = l / v0
+vy2 = t * a
+y2 = (vy2 / 2) * t
 ##
+P = 6.2e-30u"C*m"
+q = (10 * ElementaryCharge)
+d = P / q
+E = 1.5e4u"N/C"
+mt = q * E * d 
+##
+a = 5.8cm
+z = a / 2
+q = 3.4u"nC"
+res = uconvert(ElectricFieldU, (4 * ElectricConstant * q * z) / (z^2 + (a^2) / 2)^(3 / 2))
+@labeled res |> up
+@labeled (4*q)/(π*VacuumElectricPermittivity*(3^(3/2)*a^2)) |> up
+@labeled (4*3.4e-9)/(3.14*8.854188e-12*(3^(3/2)*(5.8e-2)^2))
+##
+σ = 5.2u"nC/m^2"
+a = 2.3cm
+b = 11.1cm
+z = 4.8cm
+#
+σ = 1.3u"nC/m^2"
+a = 3.1cm
+b = 8.2cm
+z = 2.0cm
+#
+t1(r) = -2 * (z^2 + r^2)^(-1 / 2)
+res = σ * z / (4 * VacuumElectricPermittivity) * (t1(b) - t1(a))
+@labeled res
+@labeled res |> up
+## P4T1
+ΔλCompton(θ::MyDegree ; mass=ElectronMass) = (PlanckConstant/(mass*SpeedOfLightInVacuum))*(1 - cos(θ))
+# EFromλ(λ::Length) = PlanckConstant*SpeedOfLightInVacuum/λ
+function Efpλ(; E=nothing, λ=nothing, f=nothing, p=nothing)
+	changed = false
+	if λ == nothing
+		if f != nothing
+			λ = SpeedOfLightInVacuum/f
+			changed = true
+		elseif E != nothing
+			λ = PlanckConstant*SpeedOfLightInVacuum/E
+			changed = true
+		end
+	end
+	if f == nothing
+		if λ != nothing
+			f = SpeedOfLightInVacuum/λ
+			changed = true
+		elseif E != nothing
+			f = E/PlanckConstant
+			changed = true
+		end
+	end
+	if E == nothing
+		if f != nothing
+			E = PlanckConstant*f
+			changed = true
+		elseif p != nothing
+			E = p*SpeedOfLightInVacuum
+			changed = true
+		end
+	end
+	if p == nothing
+		if E != nothing
+			p = E/SpeedOfLightInVacuum
+			changed = true
+		end
+	end
+	if changed
+		return Efpλ(; E, λ, f, p)
+	else
+		return (; E, λ, f, p)
+	end
+end
+## q5
+E1 = 100u"MeV"
+λ1 = PlanckConstant*SpeedOfLightInVacuum/E1 |> upreferred
+λ2 = λ1 + ΔλCompton(pi ; mass=ProtonMass)
+@labeled Efpλ(;λ=λ2).E - E1
+# E2 = 1.320666e-11 J
+# E2 - E1 = -2.815103e-12 J
+## q1:p4
+θ1 = 15.15°
+λ1 = 0.149e-9u"m"
+d = λ1 /(sin(θ1)*2)
+λ2 = 2*d*sin(θ1 + 0.015°)
+@labeled λ2 - λ1
+##
+Lc = 30e-9u"m"
+phi  = PlanckConstant*SpeedOfLightInVacuum/Lc
+Km = PlanckConstant*SpeedOfLightInVacuum/(20e-9u"m") - phi
+Vs = Km/ElementaryCharge
+## sp23.06
+Ec = 2.4u"MN/C"
+2*pi*0.1m*VacuumElectricPermittivity*1.8m*Ec |> up
+## sp23.07
+dP = 6.8u"μC/m^2"
+dM = 4.3e-6u"C/m^2"
+(dP-dM)/2VacuumElectricPermittivity |> up
+(dP+dM)/2VacuumElectricPermittivity |> up
+##
+a = 2.3cm
+b = 6.1cm
+sphereVolume(r::Length) = (4/3)*π*r^3
+v = sphereVolume(b) - sphereVolume(a)
+ρ = 3.7u"nC/m^3"
+q1 = ρ*v |> up
+e1 = ElectricConstant*q1/b^2 |> ElectricFieldU
+r = 6.5cm
+@labeled λ = e1*2*π*r*VacuumElectricPermittivity |> up
+@labeled σ_s = VacuumElectricPermittivity*e1*2/r |> up
+@assert (up(σ_s*π*r^2) - up(λ)).val <= 1e-20

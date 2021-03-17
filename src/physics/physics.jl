@@ -9,7 +9,9 @@ using LinearAlgebra
 using PhysicalConstants.CODATA2018
 using Unitful
 using ForceImport
+
 @force using Unitful.DefaultSymbols
+Unitful.promote_to_derived() # promotes units toderived units like Joule
 # https://painterqubits.github.io/Unitful.jl/stable/highlights/
 # 8m == 800cm
 # -
@@ -55,6 +57,36 @@ function si_round(q::Quantity; fspec="{1:+9.4f} {2:s}")
     format(fspec, ustrip(q), unit(q))
 end
 ss = si_round
+up = upreferred
+# @eval Unitful function Base.show(io::IO, mime::MIME"text/plain", x::Quantity)
+#     println(io, Main.si_round(x))
+# end
+# @eval Unitful function Base.show(io::IO, mime::MIME"text/plain", x::Vector{<:Quantity})
+#     Base.show([Main.si_round(q) for q in x])
+# end
+##
+# @defonce origShow = Unitful.Base.show
+# @eval Unitful function Base.show(io::IO, mime::MIME"text/plain", x::Quantity)
+#     Main.origShow(io, mime, upreferred(x))
+# end
+# @eval Unitful function Base.show(io::IO, mime::MIME"text/plain", x::Vector{<:Quantity})
+#     Main.origShow(io, mime, upreferred(x))
+# end
+##
+
+@eval Unitful function showval(io::IO, x::Number, brackets::Bool=true)
+    brackets && print_opening_bracket(io, x)
+    # show(io, Main.@sprintf "%e" x)
+    print(io, Main.@sprintf "%e" x)
+    brackets && print_closing_bracket(io, x)
+end
+
+@eval Unitful function showval(io::IO, mime::MIME, x::Number, brackets::Bool=true)
+    brackets && print_opening_bracket(io, x)
+    # show(io, mime, Main.@sprintf "%e" x)
+    print(io, Main.@sprintf "%e" x)
+    brackets && print_closing_bracket(io, x)
+end
 ##
 ## P4_C1
 Mass = typeof(1.0u"kg")
@@ -65,8 +97,15 @@ Momentum = typeof(1.0u"kg*m/s")
 Energy = typeof(1.0u"J")
 Charge = typeof(1.0u"C")
 Force = typeof(1.0u"N")
+ElectricFieldU = u"kg*m/(A^1*s^3)"
+ElectricField = typeof(1.0ElectricFieldU)
+# @unit Ef "Ef" Ef 1ElectricFieldU true
+FluxU = u"N*m^2/C"
+Flux = typeof(1.0FluxU)
+
 ##
 TYPE_LESS = true
+TYPE_LESS = false
 if TYPE_LESS
     Mass = Number
     Speed = Number
@@ -76,6 +115,8 @@ if TYPE_LESS
     Energy = Number
     Charge = Number
     Force = Number
+    ElectricField = Number
+    Flux = Number
 end
 ##
 Base.@kwdef mutable struct Particle 
@@ -99,7 +140,7 @@ end
 function neutralParticle(position::Vector{<:Length})::Particle
     return Particle(; charge=1u"C", position)
 end
-function fieldGet(force, particle::Particle, position::Vector{Length})::Vector{<:Force}
+function fieldGet(force, particle::Particle, position::Vector{Length})::Vector{<:Force} # @wrongunit should be newton/coulomb
     neutralParticle = neutralParticle(position)
     return force(neutralParticle, particle)
 end
@@ -109,6 +150,10 @@ function netForce(force, affectedParticle::Particle, particles::Particle ...)
         nf += force(affectedParticle, p)
     end
     return nf
+end
+## 22.3
+function dipoleFieldZ(charge::Charge, d::Length, z::Length)::ElectricField
+    return 2 * ElectricConstant * charge * d / z^3
 end
 ##
 kineticEnergy(m::Mass, v::Speed)::Energy = 0.5 * m * v^2
