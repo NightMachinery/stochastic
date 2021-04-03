@@ -30,4 +30,4 @@ q1 = Particle(charge=Q*2C, position=vecθ(d, 150°))
 q2 = Particle(charge=Q*-2C, position=vecθ(d, -30°))
 q3 = Particle(charge=Q*-4C, position=vecθ(d, 30°))
 nf = netForce(electricForce, qn, q1, q2, q3)
-@labeled mag2(nf)/ElectricConstant
+a = mag2(nf)/ElectricConstant
