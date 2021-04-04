@@ -57,6 +57,11 @@ def test():
 
     ic(calc("OUT 7."))
 
+    n1 = "migrating_grammars"
+    t2 = ic(calc(n1))
+    assert ic(t2.data) == 'name'
+    assert ic(t2.children[0]) == n1
+
 
 if __name__ == '__main__':
     from IPython import embed
