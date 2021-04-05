@@ -57,7 +57,27 @@ function si_round(q::Quantity; fspec="{1:+9.4f} {2:s}")
     format(fspec, ustrip(q), unit(q))
 end
 ss = si_round
-up = upreferred
+##
+upreferred2(x::Union{Quantity, Number, Missing}) = upreferred(x)
+upreferred2(x) = x
+up = upreferred2
+# (&)(a::Quantity) = upreferred(a) # (&)(6fm)
+(&)(a::Quantity, b::Unitful.Units) = uconvert(b,a) # you'll probably face operator priority issues though
+function (&)(a::Quantity, b::String)
+    if b in ("", " ")
+        upreferred(a)
+    else
+        uconvert(uparse(b),a)
+    end
+end
+(&)(a::Quantity, b::Char) = a & string(b)
+(&)(b, a::Quantity) = a & b
+function repl_transform_up(ex)
+    Expr(:toplevel, :(upreferred2($ex)))
+end
+# pushing this to the REPL makes unable to see results in any other units
+# pushfirst!(Base.active_repl_backend.ast_transforms, repl_transform_up)
+##
 # @eval Unitful function Base.show(io::IO, mime::MIME"text/plain", x::Quantity)
 #     println(io, Main.si_round(x))
 # end
