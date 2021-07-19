@@ -149,3 +149,38 @@ r = 6.5cm
 @labeled λ = e1*2*π*r*VacuumElectricPermittivity |> up
 @labeled σ_s = VacuumElectricPermittivity*e1*2/r |> up
 @assert (up(σ_s*π*r^2) - up(λ)).val <= 1e-20
+## C5 E5.2
+En(m, L, n) = ((PlanckConstant^2)/(8*m*L^2))*(n^2)
+@labeled En(ElectronMass, 1e-10u"m", 1) & u"eV"
+@labeled En(ElectronMass, 1e-10u"m", 1) & u"eV"
+@labeled En(ElectronMass, 1e-10u"m", 2) & u"eV"
+@labeled En(ElectronMass, 1e-10u"m", 3) & u"eV"
+## C26 SP2
+R = 2u"mm"
+id = 2e5u"A/m^2"
+@labeled π*(R^2-(R^2)/4)*id & A
+a1 = 3e11u"A/m^4"
+@labeled 2*π*a1*(R^4/4-(R/2)^4/4) & A
+##
+@labeled Pc = (1//4)*(1//10)*(7//10) + (1//2)*(1//10)*(3//10) + (6//10)*(9//10)*(7//10) + (2//10)*(9//10)*(3//10)
+@labeled Pcm = 1 - Pc
+
+@labeled ((3//4)//Pc)*(1//10)*(1//2)
+
+@labeled ((1//4)//Pcm)*(1//10)*(8//10)
+
+@labeled (0.08+0.037)/(0.08+0.037*2)
+##
+a = PlanckConstant/(2*π*(13.6u"eV")*(10^-9)u"s") & ""
+my_n(n) = 1/(n-1)^2 - 1/n^2
+##
+a = 262.8
+b = 1.25
+a = 237.36
+@labeled a/b + a/b^2 + a/b^3
+##
+a = 0
+for i in 0:5
+	a += 8/(1.07)^i
+end
+a

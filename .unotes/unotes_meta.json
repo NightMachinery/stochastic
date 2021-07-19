@@ -1,0 +1,184 @@
+{
+  "name": "",
+  "isOrdered": true,
+  "folders": {
+    "algebra": {
+      "name": "algebra",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "art": {
+      "name": "art",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "common": {
+      "name": "common",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "coronavirus": {
+      "name": "coronavirus",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "diffeq": {
+      "name": "diffeq",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "exam": {
+      "name": "exam",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "exercises": {
+      "name": "exercises",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "grammar_playground": {
+      "name": "grammar_playground",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "ignored": {
+      "name": "ignored",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "j1": {
+      "name": "j1",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "j2": {
+      "name": "j2",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "j3": {
+      "name": "j3",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo1": {
+      "name": "jo1",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo2": {
+      "name": "jo2",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo3": {
+      "name": "jo3",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo4": {
+      "name": "jo4",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo5": {
+      "name": "jo5",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "jo6": {
+      "name": "jo6",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "luxor": {
+      "name": "luxor",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "makiePlots": {
+      "name": "makiePlots",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "other": {
+      "name": "other",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "plots": {
+      "name": "plots",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "project": {
+      "name": "project",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "readme.org_imgs": {
+      "name": "readme.org_imgs",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "resources": {
+      "name": "resources",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "src": {
+      "name": "src",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "timetracker": {
+      "name": "timetracker",
+      "isOrdered": true,
+      "folders": {},
+      "files": {}
+    },
+    "tmp": {
+      "name": "tmp",
+      "isOrdered": true,
+      "folders": {
+        "plots": {
+          "name": "plots",
+          "isOrdered": true,
+          "folders": {},
+          "files": {}
+        }
+      },
+      "files": {
+        "hi": 0
+      }
+    }
+  },
+  "files": {}
+}

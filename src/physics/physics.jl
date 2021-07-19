@@ -58,20 +58,21 @@ function si_round(q::Quantity; fspec="{1:+9.4f} {2:s}")
 end
 ss = si_round
 ##
-upreferred2(x::Union{Quantity, Number, Missing}) = upreferred(x)
+QuantityLike = Union{Quantity, Number, Missing}
+upreferred2(x::QuantityLike) = upreferred(x)
 upreferred2(x) = x
 up = upreferred2
 # (&)(a::Quantity) = upreferred(a) # (&)(6fm)
-(&)(a::Quantity, b::Unitful.Units) = uconvert(b,a) # you'll probably face operator priority issues though
-function (&)(a::Quantity, b::String)
+(&)(a::QuantityLike, b::Unitful.Units) = uconvert(b,a) # you'll probably face operator priority issues though
+function (&)(a::QuantityLike, b::String)
     if b in ("", " ")
         upreferred(a)
     else
         uconvert(uparse(b),a)
     end
 end
-(&)(a::Quantity, b::Char) = a & string(b)
-(&)(b, a::Quantity) = a & b
+(&)(a::QuantityLike, b::Char) = a & string(b)
+(&)(b, a::QuantityLike) = a & b
 function repl_transform_up(ex)
     Expr(:toplevel, :(upreferred2($ex)))
 end
