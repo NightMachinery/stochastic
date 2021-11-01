@@ -1,6 +1,8 @@
 module Stochastic
 
 greet() = print("Hello World!")
-using Main.Test2
+
+include("./test2.jl")
+using .Test2
 bear
 end # module
