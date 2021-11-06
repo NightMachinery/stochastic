@@ -4,6 +4,8 @@
 ** Add batching
 *** Batch normalization?
 
+** Make the random split between the training and validation data deterministic based on a seed
+
 ** DONE Use =Float32= instead of =UInt8= for the characters?
 #+begin_example
 : ┌ Warning: Slow fallback implementation invoked for conv!  You probably don't want this; check your datatypes.
@@ -42,6 +44,7 @@ using Base.Iterators
 using LinearAlgebra
 using Flux
 using UnicodePlots
+import Zygote
 import Dates
 import BSON
 #+end_src
@@ -829,7 +832,6 @@ length(elizium[:train_samples_split][end])
 #+RESULTS:
 : 500
 
-
 ** Model
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 model_selected = :m1
@@ -856,7 +858,7 @@ function ps_init()
         lc1_s = 4
         lc1_c = 32
         global model1 = Chain(
-            x -> reshape(x, :, 1), # Fake batching
+            # x -> reshape(x, :, 1), # Fake batching
             x -> reshape(x, :, 1, size(x, 2)),
             Conv((lc1_s,), 1=>lc1_c, relu),
             x -> reshape(x, :, size(x, 3)),
@@ -913,8 +915,10 @@ function title_from_raw(raw)
             end
         end
 
-        return res[1] # @todo/batch
+        return [i[1] for i in res], [i[2] for i in res]
     else
+        # @todo/batch
+
         raw = softmax(raw)
         max_i = 0
         max_p = -Inf
@@ -929,13 +933,28 @@ function title_from_raw(raw)
     end
 end
 
+function pad_constant_to_length(arr, len; constant=0, kwargs...)
+    pad_n = len - length(arr)
+    if pad_n > 0
+        return Flux.pad_constant(arr, (0, pad_n), constant; kwargs...)
+    elseif pad_n < 0
+        return arr[1:len]
+    else
+        return arr
+    end
+end
+
 function predict_title(text::AbstractString)
     text_bytes = text_to_bytes(text)
+    text_bytes = pad_constant_to_length(text_bytes, PART_ONE_SIZE)
     predict_title(text_bytes)
 end
 function predict_title(text_bytes::Union{AbstractVector{UInt8}, AbstractVector{Float32}})
     @assert length(text_bytes) == PART_ONE_SIZE "predict_title: length(text_bytes)=$(length(text_bytes))"
-    raw = predict_title_raw(text_bytes)
+    predict_title(reshape(text_bytes, :, 1))
+end
+function predict_title(batch::AbstractMatrix)
+    raw = predict_title_raw(batch)
     title_from_raw(raw)
 end
 
@@ -944,7 +963,7 @@ function loss_title(pred, target)
     # loss = (10^-1)*norm(pred) # @todo decrease this further?
 
     if length(books_v) == 2
-        loss += Flux.Losses.logitbinarycrossentropy(pred, target[1:1])
+        loss += Flux.Losses.logitbinarycrossentropy(pred, reshape(target[1, :], 1, :))
     else
         loss += Flux.Losses.logitcrossentropy(pred, target)
     end
@@ -963,8 +982,8 @@ function validate()
         for book in values(books)
             eclog("validate: $(book[:name])")
             samples = book[ds][1:end]
-            accu = sum(map(predict_title.(samples)) do x
-                           x[1] == book[:name]
+            accu = sum(map(predict_title(hcat(samples...))[1]) do x
+                           x == book[:name]
                        end) / length(samples)
             push!(accuracies, accu)
             eclog(accu)
@@ -998,8 +1017,6 @@ nothing
 #+end_src
 
 #+RESULTS:
-: title_from_raw([10]) =>	(:elizium, 0.9999546021312976)
-: title_from_raw([-10]) =>	(:luminary, 0.9999546021312976)
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 function processBooks(dataset::Symbol=:train_samples
@@ -1008,6 +1025,7 @@ function processBooks(dataset::Symbol=:train_samples
                       , valid_mode=false
                       , losses=Float64[]
                       , accu_v=Bool[]
+                      , batch_size = 64
                       , i_t_start = 0
                       , n=10^3
                       , checkpoint=10^4
@@ -1015,13 +1033,21 @@ function processBooks(dataset::Symbol=:train_samples
                           "$(dir_base)/processBooks/models/$(Dates.format(Dates.now(), "yy-mm-dd HH:MM")
 )")
     i_t = i_t_start
+    val_n_batches = ceil(10^3 / batch_size)
+    checkpoint_n_batches = ceil(checkpoint / batch_size)
+    diag_n_batches = 10
 
     function model_save()
         accu = validate()
 
+        if valid_mode
+            return
+        end
+
         dest = "$(model_dir)/$(i_t)_accu=$(round(accu, digits=3))"
         ensureDir("$(model_dir)/")
-        BSON.@save dest ps opt
+        i_last = i_t # local
+        BSON.@save dest ps opt i_last
 
         eclog("Saved the model to: $(dest)")
         hsep(log_file)
@@ -1032,26 +1058,32 @@ function processBooks(dataset::Symbol=:train_samples
         while i_t <= (i_t_start + n)
             i_t += 1
 
-            book = books_v[i_books]
-            i_books = (i_books % length(books_v)) + 1
+            input_batch = Matrix{Float32}(undef, PART_ONE_SIZE, batch_size)
+            targets = Vector{Symbol}(undef, batch_size)
+            for i_batch in 1:batch_size
+                book = books_v[i_books]
+                i_books = (i_books % length(books_v)) + 1
 
-            data = book[dataset]
+                data = book[dataset]
 
-            i = get!(is, book, 1)
+                i = get!(is, book, 1)
 
-            is[book] = (i % length(data)) + 1
+                is[book] = (i % length(data)) + 1
 
-            d = data[i]
-            i_d_start = rand(1:(PART_BIG_SIZE - (PART_ONE_SIZE - 1)))
-            d = d[i_d_start:(i_d_start + (PART_ONE_SIZE - 1))]
+                d = data[i]
+                i_d_start = rand(1:(PART_BIG_SIZE - (PART_ONE_SIZE - 1)))
+                d_size = rand(200:(PART_ONE_SIZE - 1)) # @hyperParam
+                d = d[i_d_start:(i_d_start + d_size)]
+                input_batch[:, i_batch] .= pad_constant_to_length(d, PART_ONE_SIZE)
 
-            target = book[:name]
-            target_onehot = Flux.onehot(target, book_names)
+                targets[i_batch] = book[:name]
+            end
+            target_onehot = Flux.onehotbatch(targets, book_names)
 
             loss_c = nothing
             pred_raw = nothing
             loss_calculate() = begin
-                pred_raw = predict_title_raw(d)
+                pred_raw = predict_title_raw(input_batch)
                 loss_c = loss_title(pred_raw, target_onehot)
             end
             if ! valid_mode
@@ -1065,17 +1097,19 @@ function processBooks(dataset::Symbol=:train_samples
             else
                 loss_calculate()
             end
-            @assert loss_c >= 0 "loss_c: $(loss_c), name: $(book[:name]), dataset: $(dataset), i: $(i)"
             push!(losses, loss_c)
             pred, pred_p = title_from_raw(pred_raw)
-            success = pred == target
-            push!(accu_v, success)
+            success = (pred .== targets)
+            append!(accu_v, success)
             if ! valid_mode
-                eclog("$(i_t):$(i):$(i_d_start). $(success ? "S" : "F"); loss: $(loss_c), p: $(pred_p), pred_raw: $(pred_raw), raw_sigmoid: $(sigmoid.(pred_raw)), target_oh: $(target_onehot), target=$(book[:name]), pred=$(pred)")
+                eclog("$(i_t):. accu=$(mean(success)); loss: $(loss_c), mean(p): $(mean(pred_p)), mean(pred_raw): $(mean(pred_raw))")
+                if i_t % diag_n_batches == 0
+                    eclog("p:\n$(pred_p)\npred_raw:\n$(pred_raw)\npred:\n$(pred)")
+                end
 
-                if i_t % checkpoint == 0
+                if i_t % checkpoint_n_batches == 0
                     model_save()
-                elseif i_t % 10^3 == 0
+                elseif i_t % val_n_batches == 0
                     validate()
                 end
             end
@@ -1103,28 +1137,39 @@ ps_init()
 #+end_src
 
 #+RESULTS:
-: Params([Float32[0.07353016; 0.18034324; -0.00090728275; 0.14256595]
+: Params([Float32[-0.017242337; -0.080393314; -0.16193709; -0.095862664]
 :
-: Float32[-0.11099262; -0.099496014; 0.07328841; -0.09464496]
+: Float32[0.124118656; 0.07870826; 0.0006407249; 0.20616631]
 :
-: Float32[0.0756615; -0.0011459852; 0.083713286; -0.19173174]
+: Float32[-0.09064826; -0.015642075; 0.20163651; 0.14985363]
 :
 : ...
 :
-: Float32[-0.18515567; 0.16104719; -0.071933456; -0.14435641]
+: Float32[-0.044165693; -0.04680357; -0.014926578; 0.04797563]
 :
-: Float32[0.06761872; -0.06186973; 0.09541784; 0.042033892]
+: Float32[0.069838405; -0.003966903; -0.13206069; 0.18372239]
 :
-: Float32[0.086811185; 0.1223845; 0.13845341; 0.017981064], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.0150818825 0.012400168 … 0.007063162 0.017654538; 0.01926501 0.0070949877 … -0.002319392 0.003536295; … ; -0.0007705063 -0.006573382 … 0.00043832048 0.0073919995; 0.006659845 -0.01241436 … -0.011297638 0.01816154], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.14175674 -0.053416155 … -0.15348913 0.13405913; 0.027868086 -0.04879741 … -0.031360205 -0.055664692; … ; 0.06984803 -0.1488541 … -0.07124436 0.14532658; -0.062225606 0.009438028 … 0.00931968 0.082675636], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.1369648 -0.21445668 … 0.17842376 0.05481881; -0.052984715 -0.12899059 … -0.10193443 0.097770154; … ; 0.19386023 -0.24143541 … 0.08447111 -0.23432845; -0.20422977 0.1652571 … -0.19172925 0.020943224], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.33499172 0.12850913 … -0.4022693 -0.019043533], Float32[0.0]])
+: Float32[-0.2097867; -0.070083514; 0.040676147; 0.055228658], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.017869903 -0.0037329192 … 0.0176447 -0.013194243; -0.007374445 -0.017985396 … -0.011701162 -0.009664678; … ; -0.016665122 0.016336957 … 0.0071907076 -0.0040914784; -0.007342555 -0.011439089 … 0.0019163652 0.0011699862], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.051800076 0.004197489 … -0.13249709 -0.16893363; 0.066316165 0.15811083 … -0.0037268773 0.14783032; … ; -0.13984977 0.093878224 … 0.04768827 -0.013673112; 0.16917804 -0.16210487 … -0.07800834 -0.0005254026], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.1703301 -0.12546742 … 0.06668544 -0.21665192; 0.20060885 0.12788033 … 0.024462044 0.10397655; … ; 0.122959256 0.18007427 … 0.11662841 -0.023312747; 0.057058156 -0.18154204 … -0.0083863735 0.19313002], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.26863915 0.050226733 … -0.3679485 0.27101165], Float32[0.0]])
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-opt = Flux.Optimise.ADAM(10^-4)
-# opt = Flux.Optimise.ADAM()
+# opt = Flux.Optimise.ADAM(10^-4)
+opt = Flux.Optimise.ADAM()
 #+end_src
 
 #+RESULTS:
-: ADAM(0.00010000000000000002, (0.9, 0.999), IdDict{Any, Any}())
+: ADAM(0.001, (0.9, 0.999), IdDict{Any, Any}())
 
+*** Load
+#+begin_src jupyter-julia :session j1 :async yes :pandoc t
+BSON.@load "/Users/evar/Base/archives/nlp_data/processBooks/models/21-11-06 00:39/150000_accu=0.82" ps # opt i_last
+
+Flux.loadparams!(model1, ps)
+
+validate()
+#+end_src
+
+#+RESULTS:
+: 0.8581349206349207
 
 *** Epoch
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1133,7 +1178,7 @@ nothing
 #+end_src
 
 #+RESULTS:
-: 6cdf71e2-2d9e-444a-92fc-b753db1cea4b
+: a04e13d2-37ce-4f1e-898a-76a13a868d9e
 
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1145,38 +1190,15 @@ lineplot(losses)
 #+end_src
 
 #+RESULTS:
-:RESULTS:
-: minimum(losses) =>	0.0
-: length(accu_v) =>	439939
-: mean(accu_v) =>	0.7404231041121611
-: mean(accu_v[end - 200:end]) =>	0.7810945273631841
-:       [90m┌────────────────────────────────────────┐[39m 
-:    [90m30[39m [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢰[39m[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[0m⠀[38;5;2m⣸[39m[38;5;2m⡇[39m[0m⠀[38;5;2m⢸[39m[38;5;2m⡀[39m[38;5;2m⡄[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢠[39m[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡀[39m[38;5;2m⣠[39m[38;5;2m⢀[39m[38;5;2m⡀[39m[38;5;2m⢰[39m[38;5;2m⣼[39m[0m⠀[38;5;2m⢰[39m[38;5;2m⡀[39m[38;5;2m⣇[39m[38;5;2m⣾[39m[38;5;2m⣿[39m[38;5;2m⣇[39m[38;5;2m⣶[39m[38;5;2m⣼[39m[38;5;2m⣇[39m[38;5;2m⣷[39m[38;5;2m⡇[39m[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⣇[39m[0m⠀[0m⠀[0m⠀[38;5;2m⡄[39m[38;5;2m⣤[39m[38;5;2m⣶[39m[38;5;2m⢀[39m[38;5;2m⣰[39m[38;5;2m⣼[39m[38;5;2m⣦[39m[38;5;2m⣤[39m[38;5;2m⣾[39m[38;5;2m⣤[39m[38;5;2m⣶[39m[38;5;2m⣶[39m[38;5;2m⣾[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣾[39m[38;5;2m⣿[39m[38;5;2m⣾[39m[38;5;2m⣿[39m[38;5;2m⣧[39m[38;5;2m⣿[39m[38;5;2m⣷[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣧[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m│[39m[38;5;2m⣿[39m[38;5;2m⣠[39m[38;5;2m⣾[39m[38;5;2m⣷[39m[38;5;2m⣷[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣾[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:     [90m0[39m [90m│[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m 
-:       [90m└────────────────────────────────────────┘[39m 
-:       ⠀[90m0[39m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[90m500000[39m⠀ 
-:END:
+: 34c9036c-a032-4550-a4fd-a732a7357a82
 
 ** Validation
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-(valid_losses, valid_accu_v) = processBooks(:valid_samples; valid_mode=true, n=100)
+valid_losses, valid_accu_v, _ = processBooks(:valid_samples; valid_mode=true, n=100)
 #+end_src
 
 #+RESULTS:
-| (0.21431449055671692 0.10850191116333008 0.4400086998939514 0.3382144570350647 0.15586091578006744 0.11703801155090332 0.25332337617874146 0.07788395881652832 0.6305750608444214 0.14970803260803223 … 1.5169612169265747 0.6117674112319946 0.10105310380458832 0.5768934488296509 0.15442031621932983 0.15224945545196533 0.1954381763935089 0.0 0.7123050689697266 0.3254115581512451) | Bool | (1 1 1 1 1 1 1 1 1 1 … 0 1 1 1 1 1 1 1 0 1) |
+: d491f953-5936-420d-8f72-602bc6a6cac3
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 @labeled mean(valid_losses)
@@ -1187,30 +1209,7 @@ lineplot(valid_losses)
 #+end_src
 
 #+RESULTS:
-:RESULTS:
-: mean(valid_losses) =>	0.4872927118837833
-: minimum(valid_losses) =>	0.0
-: maximum(valid_losses) =>	3.8240513801574707
-: mean(valid_accu_v) =>	0.77
-:      [90m┌────────────────────────────────────────┐[39m
-:    [90m4[39m [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢠[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢠[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣾[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣸[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢠[39m[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡏[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡆[39m[38;5;2m⢰[39m[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢀[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⣿[39m[0m⠀[0m⠀[38;5;2m⢀[39m[0m⠀[38;5;2m⣿[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[38;5;2m⡇[39m[38;5;2m⢀[39m[38;5;2m⡀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢸[39m[0m⠀[38;5;2m⡄[39m[0m⠀[0m⠀[38;5;2m⣼[39m[38;5;2m⣷[39m[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡸[39m[38;5;2m⣿[39m[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⡇[39m[38;5;2m⣿[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡇[39m[38;5;2m⡇[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[0m⠀[38;5;2m⢸[39m[0m⠀[0m⠀[38;5;2m⡄[39m[38;5;2m⢰[39m[38;5;2m⡄[39m[38;5;2m⢸[39m[0m⠀[38;5;2m⣇[39m[0m⠀[0m⠀[38;5;2m⣿[39m[38;5;2m⣿[39m[0m⠀[0m⠀[0m⠀[90m│[39m
-:      [90m│[39m[0m⠀[0m⠀[0m⠀[38;5;2m⢠[39m[38;5;2m⣇[39m[0m⠀[38;5;2m⡇[39m[38;5;2m⣿[39m[0m⠀[0m⠀[38;5;2m⢸[39m[38;5;2m⡇[39m[38;5;2m⣿[39m[38;5;2m⢸[39m[38;5;2m⣧[39m[38;5;2m⡄[39m[0m⠀[0m⠀[38;5;2m⣄[39m[38;5;2m⡇[39m[38;5;2m⢇[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[0m⠀[38;5;2m⢸[39m[38;5;2m⣸[39m[38;5;2m⣇[39m[38;5;2m⡇[39m[38;5;2m⢸[39m[38;5;2m⡇[39m[38;5;2m⢸[39m[38;5;2m⡄[39m[38;5;2m⣿[39m[38;5;2m⡸[39m[38;5;2m⡇[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⢀[39m[0m⠀[38;5;2m⢰[39m[90m│[39m
-:      [90m│[39m[0m⠀[38;5;2m⣦[39m[0m⠀[38;5;2m⣿[39m[38;5;2m⣿[39m[0m⠀[38;5;2m⡇[39m[38;5;2m⣿[39m[38;5;2m⣄[39m[38;5;2m⡄[39m[38;5;2m⡸[39m[38;5;2m⢣[39m[38;5;2m⣿[39m[38;5;2m⣼[39m[38;5;2m⣿[39m[38;5;2m⢇[39m[38;5;2m⢠[39m[38;5;2m⡇[39m[38;5;2m⡟[39m[38;5;2m⠁[39m[38;5;2m⢸[39m[38;5;2m⣼[39m[38;5;2m⢱[39m[38;5;2m⣠[39m[38;5;2m⡜[39m[38;5;2m⣿[39m[38;5;2m⣿[39m[38;5;2m⡇[39m[38;5;2m⡇[39m[38;5;2m⢣[39m[38;5;2m⡎[39m[38;5;2m⡇[39m[38;5;2m⣿[39m[38;5;2m⡇[39m[38;5;2m⣇[39m[38;5;2m⣿[39m[38;5;2m⡟[39m[38;5;2m⣾[39m[0m⠀[38;5;2m⡿[39m[90m│[39m
-:    [90m0[39m [90m│[39m[38;5;2m⠹[39m[38;5;2m⠈[39m[38;5;2m⠞[39m[38;5;2m⠟[39m[38;5;2m⠻[39m[38;5;2m⣦[39m[38;5;2m⠇[39m[38;5;2m⢻[39m[38;5;2m⡏[39m[38;5;2m⢿[39m[38;5;2m⠇[39m[38;5;2m⢸[39m[38;5;2m⡿[39m[38;5;2m⢿[39m[38;5;2m⡏[39m[38;5;2m⠘[39m[38;5;2m⠎[39m[38;5;2m⢣[39m[38;5;2m⠇[39m[0m⠀[38;5;2m⢸[39m[38;5;2m⠙[39m[38;5;2m⠸[39m[38;5;2m⡿[39m[38;5;2m⡇[39m[38;5;2m⢿[39m[38;5;2m⠟[39m[38;5;2m⠸[39m[38;5;2m⠇[39m[38;5;2m⠘[39m[38;5;2m⠃[39m[38;5;2m⡿[39m[38;5;2m⢿[39m[38;5;2m⠃[39m[38;5;2m⠈[39m[38;5;2m⡏[39m[38;5;2m⠁[39m[38;5;2m⠟[39m[38;5;2m⠲[39m[38;5;2m⡇[39m[90m│[39m
-:      [90m└────────────────────────────────────────┘[39m
-:      ⠀[90m0[39m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[90m100[39m⠀
-:END:
+: 402b15bc-9920-4c6f-ae05-778950a1ef3b
 
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1234,12 +1233,7 @@ println(loss_title(predict_title_raw(book[:valid_samples_split][1]), Bool[1,0]))
 #+end_src
 
 #+RESULTS:
-: target =>	elizium
-: target_onehot =>	Bool[1, 0]
-: loss_title(predict_title_raw((book[:train_samples_split])[101]), target_onehot) =>	3.296703
-: 0.056767464
-: 0.056767464
-: 2.8970432
+: 752e56d2-acd8-49dc-bb4a-7e9d8b9bad0e
 
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1248,14 +1242,14 @@ predict_title(book[:valid_samples_split][100])
 #+end_src
 
 #+RESULTS:
-| :elizium | 0.5150667f0 |
+: 0f7e505d-57ae-4c55-b50c-b32dad15239f
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 validate()
 #+end_src
 
 #+RESULTS:
-: 0.7867063492063493
+: 21913a97-6042-4c6c-9582-2def45dab8ce
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 @labeled book_names
@@ -1263,16 +1257,37 @@ getindex.(books_v,:name)
 #+end_src
 
 #+RESULTS:
-:RESULTS:
-: book_names =>	[:elizium, :luminary]
-: 2-element Vector{Symbol}:
-:  :elizium
-:  :luminary
-:END:
+: e9a809fd-6308-43dc-9494-8b898e05a5d7
+
+#+begin_src jupyter-julia :session j1 :async yes :pandoc t
+@labeled predict_title("Sturges closed his eyes and let out a deep sigh before responding.")
+
+@labeled predict_title("""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.""")
+
+@labeled predict_title(""""I'm not a Healer, I wouldn't know," the Auror evasively replied. "Besides, what does it matter now? The boat's gone, Azkaban is sinking, and we're standing around talking."
+
+"It's important because there might be someone else loose on this island! If they found Personal Effects, then they're armed too."
+
+Sturges froze for a moment, becoming a statue, before shaking his head.
+
+"Shite, you've got a point - I can't say you're wrong. Bollocks, it's possible. I did a sweep around the Abyss, looking for others, but that doesn't mean I found them all." """)
+
+@labeled predict_title("""
+As a way to light one's path, there was no finer spell than the Thief's Guide. It was a conjured light invisible to others, but it came with a price. The spell took almost thirty seconds to form, and required the same amount of time to wind down, before any other magic would channel through the wand.
+
+He moved to within a foot of the high cliff face. Dolohov had the high ground, providing an eagle eye view of the island and Harry hoped to hide by sticking close to the rocky terrain. He flew along the shore, traveling in a counter-clockwise trajectory around the island, towards the north side.
+
+From behind him a bright light flashed, bathing everything in harsh white light. Harry started to bring his wand up, before the jagged roar of a thunderclap echoed through the air, so close it rattled his teeth within their sockets, filling his skull with ringing pain. Agony ripped through his head as he rose upward, until the overhang atop the walls of the Abyss stretched overhead, providing temporary reprieve from the storm.
+""")
+nothing
+#+end_src
+
+#+RESULTS:
+: 9ed55f85-9fbd-4d89-b77c-ffa684925f23
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 bella(:mbp)
 #+end_src
 
 #+RESULTS:
-: Process(`[4mbrishz.dash[24m [4mawaysh[24m [4mbella[24m`, ProcessRunning)
+: 9657aaa9-7ec5-4ddb-af13-326e1c82a7ef
