@@ -1,10 +1,13 @@
 #+TITLE: ML/a
 
 * @todo
-** Add batching
-*** Batch normalization?
+** Batch normalization?
 
-** Make the random split between the training and validation data deterministic based on a seed
+** Dropout
+
+** Try recurrent cells
+
+** DONE Make the random split between the training and validation data deterministic based on a seed
 
 ** DONE Use =Float32= instead of =UInt8= for the characters?
 #+begin_example
@@ -22,37 +25,300 @@ run(`hostname`)
 
 #+RESULTS:
 :RESULTS:
-: Fereidoons-MacBook-Pro.local
+: daf087556f92
 : Process(`hostname`, ProcessExited(0))
 :END:
 
 ** Move data to the remote(s)
 #+begin_example zsh
-rsp-dl ~base/archives/nlp_data paria@Parias-MacBook-Air.local:base/archives/
+host=ubuntu@194.5.193.126
+host_port=22
 #+end_example
+
+#+begin_example zsh
+host=walle@51.178.215.202
+host_port=2380
+#+end_example
+
+#+begin_example zsh
+rsp-safe -e "ssh -p ${host_port:-22}" --rsync-path="mkdir -p ~/code/julia && rsync" ~cod/julia/NightCommon ${host}:code/julia/
+rsp-safe -e "ssh -p ${host_port:-22}" --exclude=models --rsync-path="mkdir -p ~/base/archives && rsync" ~base/archives/nlp_data ${host}:base/archives/
+#+end_example
+
+*** Get stuff from the remote
+#+begin_example zsh
+tmuxnewsh2 save-j1 lo_s=10 loop rsp-safe -e "ssh -p ${host_port:-22}" ${host}:'logs/j1' ./
+#+end_example
+
+**** Models
+#+begin_example zsh
+tmuxnewsh2 save-all lo_s=10 loop rsp-safe -e "ssh -p ${host_port:-22}" ${host}:'base/arch
+ives/nlp_data/processBooks/' ./all/
+#+end_example
+
+***** Find the best model
+#+begin_example zsh
+c ls -clt **/*(.) | perl -lne '/accu=(.*)/ && print $1' | sort
+#+end_example
+
+***** Copy
+#+begin_example zsh
+rsp-safe -e "ssh -p ${host_port:-22}" ${host}: ./
+#+end_example
+
+
+* GPU
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+# import Pkg; Pkg.add("CUDA")
+#+end_src
+
+#+RESULTS:
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+GC.gc(true)
+CUDA.reclaim()
+#+end_src
+
+#+RESULTS:
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+CUDA.memory_status()
+#+end_src
+
+#+RESULTS:
+: Effective GPU memory usage: 69.73% (7.504 GiB/10.761 GiB)
+: Memory pool usage: 6.642 GiB (6.750 GiB reserved)
+
+*** _
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+[10 3 2] |> gpu
+#+end_src
+
+#+RESULTS:
+: 1×3 CuArray{Int64, 2, CUDA.Mem.DeviceBuffer}:
+:  10  3  2
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+[10 3 2] |> cu
+#+end_src
+
+#+RESULTS:
+: 1×3 CuArray{Int64, 2, CUDA.Mem.DeviceBuffer}:
+:  10  3  2
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+Float32.([10 3 2]) |> gpu
+#+end_src
+
+#+RESULTS:
+: 1×3 CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}:
+:  10.0  3.0  2.0
+
+*** _
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+ps
+#+end_src
+
+#+RESULTS:
+: Params([Float32[-0.111778125; 0.002819123; -0.027244896; -0.03988738]
+:
+: Float32[-0.18919002; -0.05827969; 0.12246067; -0.21493939]
+:
+: Float32[0.7942748; -1.4989135; -0.5318076; -0.7112862]
+:
+: ...
+:
+: Float32[-0.1343732; -0.008487504; -0.13199817; -0.009081438]
+:
+: Float32[0.41980788; -0.9344694; -0.5839063; 0.024473608]
+:
+: Float32[0.0014797748; -0.0027378402; -0.027659174; 0.0004863238], Float32[-0.12336355, -0.25500798, -0.004385097, -0.20307787, -1.6159056, -0.41346544, 0.0, -0.38553542, -0.005019192, 0.3411631  …  -1.3360305, -1.7169491, -0.16208945, 0.30585626, -0.07662875, 0.0, -0.0040730415, -0.008172875, -0.005298142, -0.13486442], Float32[0.0046841805 -0.02351334 … 0.017824527 0.0055555017; -0.0045686923 0.03180616 … -0.0575844 -0.015381001; … ; -0.016207157 0.018622335 … -0.019795312 -0.01859735; -0.114179954 0.03541677 … -0.035208307 -0.06850835], Float32[0.036304567, -0.19586259, -0.26909864, -0.26280588, -0.31083316, -0.7186801, -0.08919432, -0.20911779, 0.0048079244, -0.017520554  …  -0.86946017, -0.32969135, -0.037706837, 0.01641627, 0.08448448, -0.8033937, 0.06943873, -0.15353437, -0.03882099, -0.4388559], Float32[0.03218485 -0.16204661 … -0.014277367 0.028125435; 0.26154378 -0.800345 … 0.12894902 0.2691888; … ; -0.09592571 0.06082246 … 0.049979135 0.4438708; -0.028685609 -0.25797015 … -0.08898944 0.29308218], Float32[-0.025797812, -0.4099781, 0.3404507, -0.6801296, -0.42796856, 0.57648206, 0.2200871, 2.2506657, -0.34521192, 0.09023797  …  -1.7964157, -0.2455771, -0.70767885, 0.17814818, -1.926309, -2.1069493, -0.08664764, -1.6999221, -0.3778407, 1.0155528], Float32[0.04485587 0.1187261 … 0.088028684 -0.15526259; 0.071831286 -0.16534011 … -0.08978507 0.12799264; … ; -0.07809766 0.2991697 … -0.43194246 0.007871836; 0.06602923 0.52628297 … 0.03215004 -0.29033986], Float32[-0.34063843, -0.16484079, 0.4424414, -0.11640712, -0.9418747, -0.15433855, -0.93596625, -0.12772629, -0.7169618, -0.31299147  …  -0.50175637, -0.5899134, -4.7391863, -0.6534439, 0.0564369, 0.4552015, -0.32347828, -0.39680782, -0.5125247, -0.06212805], Float32[-0.014492278 -0.03157189 … 0.061014976 0.034709286], Float32[-0.5395494]])
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+cpu(ps)
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+# [goto error]
+: MethodError: in(::Zygote.Params, ::Base.KeySet{Any, IdDict{Any, Any}}) is ambiguous. Candidates:
+:   in(k, v::Base.KeySet{var"#s77", var"#s76"} where {var"#s77", var"#s76"<:IdDict}) in Base at iddict.jl:174
+:   in(k, v::Base.KeySet) in Base at abstractdict.jl:69
+:   in(x::Zygote.Params, args...; kwargs...) in Zygote at /home/walle/.julia/packages/MacroTools/PP9IQ/src/examples/forward.jl:17
+: Possible fix, define
+:   in(::Zygote.Params, ::Base.KeySet{var"#s77", T} where {var"#s77", T<:(IdDict{var"#s77", V} where V)})
+:
+: Stacktrace:
+:  [1] haskey(d::IdDict{Any, Any}, k::Zygote.Params)
+:    @ Base ./abstractdict.jl:17
+:  [2] fmap(f::Flux.var"#130#131", x::Zygote.Params; exclude::typeof(Functors.isleaf), walk::typeof(Functors._default_walk), cache::IdDict{Any, Any})
+:    @ Functors ~/.julia/packages/Functors/hIysk/src/functor.jl:120
+:  [3] fmap(f::Function, x::Zygote.Params)
+:    @ Functors ~/.julia/packages/Functors/hIysk/src/functor.jl:120
+:  [4] cpu(x::Zygote.Params)
+:    @ Flux ~/.julia/packages/Flux/BPPNj/src/functor.jl:115
+:  [5] top-level scope
+:    @ In[35]:1
+:  [6] eval
+:    @ ./boot.jl:360 [inlined]
+:  [7] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
+:    @ Base ./loading.jl:1116
+:END:
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+Flux.params(model1)
+#+end_src
+
+#+RESULTS:
+: Params([Float32[-0.111778125; 0.002819123; -0.027244896; -0.03988738]
+:
+: Float32[-0.18919002; -0.05827969; 0.12246067; -0.21493939]
+:
+: Float32[0.7942748; -1.4989135; -0.5318076; -0.7112862]
+:
+: ...
+:
+: Float32[-0.1343732; -0.008487504; -0.13199817; -0.009081438]
+:
+: Float32[0.41980788; -0.9344694; -0.5839063; 0.024473608]
+:
+: Float32[0.0014797748; -0.0027378402; -0.027659174; 0.0004863238], Float32[-0.12336355, -0.25500798, -0.004385097, -0.20307787, -1.6159056, -0.41346544, 0.0, -0.38553542, -0.005019192, 0.3411631  …  -1.3360305, -1.7169491, -0.16208945, 0.30585626, -0.07662875, 0.0, -0.0040730415, -0.008172875, -0.005298142, -0.13486442], Float32[0.0046841805 -0.02351334 … 0.017824527 0.0055555017; -0.0045686923 0.03180616 … -0.0575844 -0.015381001; … ; -0.016207157 0.018622335 … -0.019795312 -0.01859735; -0.114179954 0.03541677 … -0.035208307 -0.06850835], Float32[0.036304567, -0.19586259, -0.26909864, -0.26280588, -0.31083316, -0.7186801, -0.08919432, -0.20911779, 0.0048079244, -0.017520554  …  -0.86946017, -0.32969135, -0.037706837, 0.01641627, 0.08448448, -0.8033937, 0.06943873, -0.15353437, -0.03882099, -0.4388559], Float32[0.03218485 -0.16204661 … -0.014277367 0.028125435; 0.26154378 -0.800345 … 0.12894902 0.2691888; … ; -0.09592571 0.06082246 … 0.049979135 0.4438708; -0.028685609 -0.25797015 … -0.08898944 0.29308218], Float32[-0.025797812, -0.4099781, 0.3404507, -0.6801296, -0.42796856, 0.57648206, 0.2200871, 2.2506657, -0.34521192, 0.09023797  …  -1.7964157, -0.2455771, -0.70767885, 0.17814818, -1.926309, -2.1069493, -0.08664764, -1.6999221, -0.3778407, 1.0155528], Float32[0.04485587 0.1187261 … 0.088028684 -0.15526259; 0.071831286 -0.16534011 … -0.08978507 0.12799264; … ; -0.07809766 0.2991697 … -0.43194246 0.007871836; 0.06602923 0.52628297 … 0.03215004 -0.29033986], Float32[-0.34063843, -0.16484079, 0.4424414, -0.11640712, -0.9418747, -0.15433855, -0.93596625, -0.12772629, -0.7169618, -0.31299147  …  -0.50175637, -0.5899134, -4.7391863, -0.6534439, 0.0564369, 0.4552015, -0.32347828, -0.39680782, -0.5125247, -0.06212805], Float32[-0.014492278 -0.03157189 … 0.061014976 0.034709286], Float32[-0.5395494]])
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+cpu(Flux.params(model1))
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+# [goto error]
+: MethodError: in(::Zygote.Params, ::Base.KeySet{Any, IdDict{Any, Any}}) is ambiguous. Candidates:
+:   in(k, v::Base.KeySet{var"#s77", var"#s76"} where {var"#s77", var"#s76"<:IdDict}) in Base at iddict.jl:174
+:   in(k, v::Base.KeySet) in Base at abstractdict.jl:69
+:   in(x::Zygote.Params, args...; kwargs...) in Zygote at /home/walle/.julia/packages/MacroTools/PP9IQ/src/examples/forward.jl:17
+: Possible fix, define
+:   in(::Zygote.Params, ::Base.KeySet{var"#s77", T} where {var"#s77", T<:(IdDict{var"#s77", V} where V)})
+:
+: Stacktrace:
+:  [1] haskey(d::IdDict{Any, Any}, k::Zygote.Params)
+:    @ Base ./abstractdict.jl:17
+:  [2] fmap(f::Flux.var"#130#131", x::Zygote.Params; exclude::typeof(Functors.isleaf), walk::typeof(Functors._default_walk), cache::IdDict{Any, Any})
+:    @ Functors ~/.julia/packages/Functors/hIysk/src/functor.jl:120
+:  [3] fmap(f::Function, x::Zygote.Params)
+:    @ Functors ~/.julia/packages/Functors/hIysk/src/functor.jl:120
+:  [4] cpu(x::Zygote.Params)
+:    @ Flux ~/.julia/packages/Flux/BPPNj/src/functor.jl:115
+:  [5] top-level scope
+:    @ In[38]:1
+:  [6] eval
+:    @ ./boot.jl:360 [inlined]
+:  [7] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
+:    @ Base ./loading.jl:1116
+:END:
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+Flux.params(cpu(model1))
+#+end_src
+
+#+RESULTS:
+: Params([Float32[-0.111778125; 0.002819123; -0.027244896; -0.03988738]
+:
+: Float32[-0.18919002; -0.05827969; 0.12246067; -0.21493939]
+:
+: Float32[0.7942748; -1.4989135; -0.5318076; -0.7112862]
+:
+: ...
+:
+: Float32[-0.1343732; -0.008487504; -0.13199817; -0.009081438]
+:
+: Float32[0.41980788; -0.9344694; -0.5839063; 0.024473608]
+:
+: Float32[0.0014797748; -0.0027378402; -0.027659174; 0.0004863238], Float32[-0.12336355, -0.25500798, -0.004385097, -0.20307787, -1.6159056, -0.41346544, 0.0, -0.38553542, -0.005019192, 0.3411631  …  -1.3360305, -1.7169491, -0.16208945, 0.30585626, -0.07662875, 0.0, -0.0040730415, -0.008172875, -0.005298142, -0.13486442], Float32[0.0046841805 -0.02351334 … 0.017824527 0.0055555017; -0.0045686923 0.03180616 … -0.0575844 -0.015381001; … ; -0.016207157 0.018622335 … -0.019795312 -0.01859735; -0.114179954 0.03541677 … -0.035208307 -0.06850835], Float32[0.036304567, -0.19586259, -0.26909864, -0.26280588, -0.31083316, -0.7186801, -0.08919432, -0.20911779, 0.0048079244, -0.017520554  …  -0.86946017, -0.32969135, -0.037706837, 0.01641627, 0.08448448, -0.8033937, 0.06943873, -0.15353437, -0.03882099, -0.4388559], Float32[0.03218485 -0.16204661 … -0.014277367 0.028125435; 0.26154378 -0.800345 … 0.12894902 0.2691888; … ; -0.09592571 0.06082246 … 0.049979135 0.4438708; -0.028685609 -0.25797015 … -0.08898944 0.29308218], Float32[-0.025797812, -0.4099781, 0.3404507, -0.6801296, -0.42796856, 0.57648206, 0.2200871, 2.2506657, -0.34521192, 0.09023797  …  -1.7964157, -0.2455771, -0.70767885, 0.17814818, -1.926309, -2.1069493, -0.08664764, -1.6999221, -0.3778407, 1.0155528], Float32[0.04485587 0.1187261 … 0.088028684 -0.15526259; 0.071831286 -0.16534011 … -0.08978507 0.12799264; … ; -0.07809766 0.2991697 … -0.43194246 0.007871836; 0.06602923 0.52628297 … 0.03215004 -0.29033986], Float32[-0.34063843, -0.16484079, 0.4424414, -0.11640712, -0.9418747, -0.15433855, -0.93596625, -0.12772629, -0.7169618, -0.31299147  …  -0.50175637, -0.5899134, -4.7391863, -0.6534439, 0.0564369, 0.4552015, -0.32347828, -0.39680782, -0.5125247, -0.06212805], Float32[-0.014492278 -0.03157189 … 0.061014976 0.034709286], Float32[-0.5395494]])
+
+
+*** @broken Use =IdDict= instead
+:PROPERTIES:
+:visibility: folded
+:END:
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+is = Dict{Book, Int}()
+is[elizium] = 2
+#+end_src
+
+#+RESULTS:
+:RESULTS:
+# [goto error]
+: Scalar indexing is disallowed.
+: Invocation of getindex resulted in scalar indexing of a GPU array.
+: This is typically caused by calling an iterating implementation of a method.
+: Such implementations *do not* execute on the GPU, but very slowly on the CPU,
+: and therefore are only permitted from the REPL for prototyping purposes.
+: If you did intend to index this array, annotate the caller with @allowscalar.
+:
+: Stacktrace:
+:   [1] error(s::String)
+:     @ Base ./error.jl:33
+:   [2] assertscalar(op::String)
+:     @ GPUArrays ~/.julia/packages/GPUArrays/3sW6s/src/host/indexing.jl:53
+:   [3] getindex
+:     @ ~/.julia/packages/GPUArrays/3sW6s/src/host/indexing.jl:86 [inlined]
+:   [4] getindex
+:     @ ./subarray.jl:309 [inlined]
+:   [5] hash(A::SubArray{Float32, 1, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}, Tuple{UnitRange{Int64}}, true}, h::UInt64)
+:     @ Base ./abstractarray.jl:2432
+:   [6] hash
+:     @ ./pair.jl:52 [inlined]
+:   [7] hash(A::Vector{SubArray{Float32, 1, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}, Tuple{UnitRange{Int64}}, true}}, h::UInt64)
+:     @ Base ./abstractarray.jl:2433
+:   [8] hash(x::Vector{SubArray{Float32, 1, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}, Tuple{UnitRange{Int64}}, true}})
+:     @ Base ./hashing.jl:18
+:   [9] hash(a::Dict{Symbol, Any}, h::UInt64)
+:     @ Base ./abstractdict.jl:489
+:  [10] hash
+:     @ ./hashing.jl:18 [inlined]
+:  [11] hashindex
+:     @ ./dict.jl:169 [inlined]
+:  [12] ht_keyindex2!(h::Dict{Dict{Symbol, Any}, Int64}, key::Dict{Symbol, Any})
+:     @ Base ./dict.jl:310
+:  [13] setindex!(h::Dict{Dict{Symbol, Any}, Int64}, v0::Int64, key::Dict{Symbol, Any})
+:     @ Base ./dict.jl:383
+:  [14] top-level scope
+:     @ In[52]:2
+:  [15] eval
+:     @ ./boot.jl:360 [inlined]
+:  [16] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
+:     @ Base ./loading.jl:1116
+:END:
+
 
 * Bootstrap
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 # using Revise # @redundant
+const LOCAL_PACKAGES = expanduser("~/code/julia/")
+push!(LOAD_PATH, LOCAL_PACKAGES)
+
 using NightCommon
 #+end_src
 
 #+RESULTS:
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+using Random
 using Base.Iterators
 using LinearAlgebra
+using Distributions
 using Flux
 using UnicodePlots
 import Zygote
 import Dates
 import BSON
+using CUDA
+CUDA.allowscalar(false)
 #+end_src
 
 #+RESULTS:
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-logdir = "$(homedir())/logs"
+logdir = "$(homedir())/logs/"
 ensureDir(logdir)
 log_file = open("$(logdir)/j1","a+")
 function eclog(str)
@@ -687,7 +953,8 @@ nothing
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 PART_ONE_SIZE = 500
 PART_BIG_SIZE = PART_ONE_SIZE * 4
-SAMPLE_SIZE = 12000
+SAMPLE_SIZE = 650 # Can cause GPU-OOM (550 is around 7GB)
+rng = MersenneTwister(1234);
 
 Book = Dict{Symbol, Any}
 
@@ -706,14 +973,15 @@ function book_get(path; part_size=PART_BIG_SIZE, sample_size=SAMPLE_SIZE)
     book[:path] = path
     book[:text] = open(f->read(f,String), book[:path])
     book[:bytes] = text_to_bytes(book[:text])
-    book[:parts] = map(gpu, (collect(Iterators.partition(book[:bytes], part_size))))
+    book[:parts] = (collect(Iterators.partition(book[:bytes], part_size)))
     pop!(book[:parts]) # the last entry might not be complete, so we just skip it instead of padding etc
 
     sample_size = min(sample_size, length(book[:parts]))
     train_size = floor(Int, sample_size*0.8)
     # valid_size = floor(Int, sample_size*0.2)
 
-    book[:part_samples] = sample(book[:parts], sample_size; replace=false)
+    # @todo I think only :train_samples need to be moved to the gpu
+    book[:part_samples] = map(gpu, sample(rng, book[:parts], sample_size; replace=false))
     book[:train_samples] = book[:part_samples][1:train_size]
     book[:train_samples_split] = bigPartSplit(book[:train_samples])
     book[:valid_samples] = book[:part_samples][(train_size+1):end]
@@ -753,6 +1021,9 @@ function books_load(path::AbstractString
     return book
 end
 
+elizium = nothing # for GC
+luminary = nothing
+
 nothing
 #+end_src
 
@@ -761,48 +1032,66 @@ nothing
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 elizium = books_load("$(dir_base)/Voice of the Nephilim/Elizium for the Sleepless Souls.txt"; name=:elizium)
+#+end_src
 
+#+RESULTS:
+:RESULTS:
+: Dict{Symbol, Any} with 10 entries:
+:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :path                => "/home/walle/base/archives/nlp_data/Voice of the Neph…
+:   :name                => :elizium
+:   :text                => "Elizium for the Sleepless Souls\n\nBy: Voice of the …
+:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :bytes               => Float32[69.0, 108.0, 105.0, 122.0, 105.0, 117.0, 109.…
+:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…Loaded book elizium
+: length(book[:part_samples]) =>	150
+: Dict{Symbol, Any} with 10 entries:
+:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :path                => "/home/walle/base/archives/nlp_data/Voice of the Neph…
+:   :name                => :elizium
+:   :text                => "Elizium for the Sleepless Souls\n\nBy: Voice of the …
+:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :bytes               => Float32[69.0, 108.0, 105.0, 122.0, 105.0, 117.0, 109.…
+:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:END:
+
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 hsep()
 luminary = books_load("$(dir_base)/YakAge/Black Luminary.txt"; name=:luminary)
 #+end_src
 
 #+RESULTS:
 :RESULTS:
+: ----------------------------------------
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :path                => "/Users/evar/base/archives/nlp_data/Voice of the Neph…
-:   :name                => :elizium
-:   :text                => "Elizium for the Sleepless Souls\n\nBy: Voice of the …
-:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :bytes               => Float32[69.0, 108.0, 105.0, 122.0, 105.0, 117.0, 109.…
-:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…Loaded book elizium
-: length(book[:part_samples]) =>	150
-: Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :path                => "/Users/evar/base/archives/nlp_data/YakAge/Black Lumi…
+:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :path                => "/home/walle/base/archives/nlp_data/YakAge/Black Lumi…
 :   :name                => :luminary
 :   :text                => "Black Luminary\n\nBy: YakAge\n\nThe war against the …
-:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
 :   :bytes               => Float32[66.0, 108.0, 97.0, 99.0, 107.0, 32.0, 76.0, 1…
-:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…----------------------------------------
-: Loaded book luminary
-: length(book[:part_samples]) =>	1574
+:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…Loaded book luminary
+: length(book[:part_samples]) =>	550
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :path                => "/Users/evar/base/archives/nlp_data/YakAge/Black Lumi…
+:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :path                => "/home/walle/base/archives/nlp_data/YakAge/Black Lumi…
 :   :name                => :luminary
 :   :text                => "Black Luminary\n\nBy: YakAge\n\nThe war against the …
-:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
 :   :bytes               => Float32[66.0, 108.0, 97.0, 99.0, 107.0, 32.0, 76.0, 1…
-:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
-:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
 :   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :END:
 
@@ -846,7 +1135,7 @@ function ps_init()
     global book_names = collect(keys(books))
     global books_v = collect(values(books))
 
-    global is = Dict{Book, Int}()
+    global is = IdDict{Book, Int}()
     ##
     out_len = length(books_v)
     if out_len == 2
@@ -905,6 +1194,8 @@ function predict_title_raw(text_part)
 end
 
 function title_from_raw(raw)
+    raw = cpu(raw)
+
     if length(books_v) == 2
         raw = sigmoid.(raw)
         res = map(raw) do x
@@ -915,7 +1206,8 @@ function title_from_raw(raw)
             end
         end
 
-        return [i[1] for i in res], [i[2] for i in res]
+        # These list-comprehensions are returning 1xn matrices instead of vectors. This is because =res= itself is a matrix.
+        return reshape([i[1] for i in res], :), reshape([i[2] for i in res], :)
     else
         # @todo/batch
 
@@ -938,7 +1230,7 @@ function pad_constant_to_length(arr, len; constant=0, kwargs...)
     if pad_n > 0
         return Flux.pad_constant(arr, (0, pad_n), constant; kwargs...)
     elseif pad_n < 0
-        return arr[1:len]
+        return @view arr[1:len]
     else
         return arr
     end
@@ -962,11 +1254,11 @@ function loss_title(pred, target)
     loss = 0
     # loss = (10^-1)*norm(pred) # @todo decrease this further?
 
-    if length(books_v) == 2
+    # if length(books_v) == 2
         loss += Flux.Losses.logitbinarycrossentropy(pred, reshape(target[1, :], 1, :))
-    else
-        loss += Flux.Losses.logitcrossentropy(pred, target)
-    end
+    # else
+    #     loss += Flux.Losses.logitcrossentropy(pred, target)
+    # end
 
     return loss
 end
@@ -1009,8 +1301,8 @@ if @isdefined books_v
     # @labeled title_from_raw([0.8,0.2])
     # @labeled title_from_raw([10,9])
 
-    @labeled title_from_raw([10])
-    @labeled title_from_raw([-10])
+    @labeled title_from_raw(Float32.([10 3 2]) |> gpu)
+    @labeled title_from_raw([-10 -4 1])
 end
 
 nothing
@@ -1021,7 +1313,7 @@ nothing
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 function processBooks(dataset::Symbol=:train_samples
                       ; freeze=false
-                      , is = Dict{Book, Int}()
+                      , is = IdDict{Book, Int}()
                       , valid_mode=false
                       , losses=Float64[]
                       , accu_v=Bool[]
@@ -1032,10 +1324,15 @@ function processBooks(dataset::Symbol=:train_samples
                       , model_dir=
                           "$(dir_base)/processBooks/models/$(Dates.format(Dates.now(), "yy-mm-dd HH:MM")
 )")
+    interrupted = false
     i_t = i_t_start
-    val_n_batches = ceil(10^3 / batch_size)
-    checkpoint_n_batches = ceil(checkpoint / batch_size)
-    diag_n_batches = 10
+
+    # n = ceil(n / batch_size)
+    # checkpoint_n_batches = ceil(checkpoint / batch_size)
+    checkpoint_n_batches = checkpoint
+    # val_n_batches = ceil(10^5 / batch_size)
+    val_n_batches = 10^4
+    diag_n_batches = 10^4
 
     function model_save()
         accu = validate()
@@ -1046,8 +1343,9 @@ function processBooks(dataset::Symbol=:train_samples
 
         dest = "$(model_dir)/$(i_t)_accu=$(round(accu, digits=3))"
         ensureDir("$(model_dir)/")
-        i_last = i_t # local
-        BSON.@save dest ps opt i_last
+        BSON.@save dest ps=Flux.params(cpu(model1)) i_last=i_t
+        # =opt= not saved
+        # cpu(ps) errors
 
         eclog("Saved the model to: $(dest)")
         hsep(log_file)
@@ -1058,7 +1356,7 @@ function processBooks(dataset::Symbol=:train_samples
         while i_t <= (i_t_start + n)
             i_t += 1
 
-            input_batch = Matrix{Float32}(undef, PART_ONE_SIZE, batch_size)
+            input_batch = Matrix{Float32}(undef, PART_ONE_SIZE, batch_size) |> gpu
             targets = Vector{Symbol}(undef, batch_size)
             for i_batch in 1:batch_size
                 book = books_v[i_books]
@@ -1071,20 +1369,22 @@ function processBooks(dataset::Symbol=:train_samples
                 is[book] = (i % length(data)) + 1
 
                 d = data[i]
-                i_d_start = rand(1:(PART_BIG_SIZE - (PART_ONE_SIZE - 1)))
-                d_size = rand(200:(PART_ONE_SIZE - 1)) # @hyperParam
-                d = d[i_d_start:(i_d_start + d_size)]
-                input_batch[:, i_batch] .= pad_constant_to_length(d, PART_ONE_SIZE)
+                d_size = rand(100:(PART_ONE_SIZE - 1)) # @hyperParam
+                i_d_start = rand(1:(PART_BIG_SIZE - (d_size)))
+                d = @view d[i_d_start:(i_d_start + d_size)]
+                d = pad_constant_to_length(d, PART_ONE_SIZE)
+                input_batch[:, i_batch] .= d
 
                 targets[i_batch] = book[:name]
             end
-            target_onehot = Flux.onehotbatch(targets, book_names)
+            target_onehot = Flux.onehotbatch(targets, book_names) |> gpu
 
             loss_c = nothing
             pred_raw = nothing
             loss_calculate() = begin
                 pred_raw = predict_title_raw(input_batch)
                 loss_c = loss_title(pred_raw, target_onehot)
+                return loss_c
             end
             if ! valid_mode
                 # target_onehot = Flux.label_smoothing(target_onehot, 0.2f0) # @?
@@ -1101,10 +1401,11 @@ function processBooks(dataset::Symbol=:train_samples
             pred, pred_p = title_from_raw(pred_raw)
             success = (pred .== targets)
             append!(accu_v, success)
-            if ! valid_mode
+            if true # ! valid_mode
                 eclog("$(i_t):. accu=$(mean(success)); loss: $(loss_c), mean(p): $(mean(pred_p)), mean(pred_raw): $(mean(pred_raw))")
-                if i_t % diag_n_batches == 0
-                    eclog("p:\n$(pred_p)\npred_raw:\n$(pred_raw)\npred:\n$(pred)")
+                if i_t == i_t_start + 1 || i_t % diag_n_batches == 0
+                    eclog("p:\n$(pred_p)\npred_raw:\n$(pred_raw)\npred:\n$(pred)\ntargets:\n$(targets)\nsuccess:\n$(success)")
+                    # size(success): $(size(success))
                 end
 
                 if i_t % checkpoint_n_batches == 0
@@ -1117,6 +1418,7 @@ function processBooks(dataset::Symbol=:train_samples
     catch ex
         if ex isa InterruptException || ex isa Flux.Optimise.StopException
             eclog("Interrupted")
+            interrupted = true
         else
             rethrow(ex)
         end
@@ -1124,7 +1426,7 @@ function processBooks(dataset::Symbol=:train_samples
 
     model_save()
 
-    return losses, accu_v, i_t
+    return losses, accu_v, i_t, interrupted
 end
 #+end_src
 
@@ -1137,19 +1439,19 @@ ps_init()
 #+end_src
 
 #+RESULTS:
-: Params([Float32[-0.017242337; -0.080393314; -0.16193709; -0.095862664]
+: Params([Float32[0.11203562; -0.13536558; 0.15956129; -0.1705385]
 :
-: Float32[0.124118656; 0.07870826; 0.0006407249; 0.20616631]
+: Float32[-0.04817758; -0.11286157; -0.1278674; -0.18705228]
 :
-: Float32[-0.09064826; -0.015642075; 0.20163651; 0.14985363]
+: Float32[0.05709497; -0.21275555; 0.13284314; 0.16518915]
 :
 : ...
 :
-: Float32[-0.044165693; -0.04680357; -0.014926578; 0.04797563]
+: Float32[-0.13245809; 0.14284119; -0.06493855; 0.04708807]
 :
-: Float32[0.069838405; -0.003966903; -0.13206069; 0.18372239]
+: Float32[0.10835459; 0.14694823; 0.011412528; -0.031129979]
 :
-: Float32[-0.2097867; -0.070083514; 0.040676147; 0.055228658], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.017869903 -0.0037329192 … 0.0176447 -0.013194243; -0.007374445 -0.017985396 … -0.011701162 -0.009664678; … ; -0.016665122 0.016336957 … 0.0071907076 -0.0040914784; -0.007342555 -0.011439089 … 0.0019163652 0.0011699862], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.051800076 0.004197489 … -0.13249709 -0.16893363; 0.066316165 0.15811083 … -0.0037268773 0.14783032; … ; -0.13984977 0.093878224 … 0.04768827 -0.013673112; 0.16917804 -0.16210487 … -0.07800834 -0.0005254026], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.1703301 -0.12546742 … 0.06668544 -0.21665192; 0.20060885 0.12788033 … 0.024462044 0.10397655; … ; 0.122959256 0.18007427 … 0.11662841 -0.023312747; 0.057058156 -0.18154204 … -0.0083863735 0.19313002], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.26863915 0.050226733 … -0.3679485 0.27101165], Float32[0.0]])
+: Float32[0.10946911; -0.19835165; -0.1334255; -0.15266098], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.0003228504 -0.013420972 … 0.0023054443 0.0139919575; 0.0064417776 0.006645265 … -0.0034681337 -0.019084413; … ; -0.0010242084 0.013339099 … -0.009286045 0.006746935; -0.010512616 -0.0042036646 … 0.013419501 0.017194489], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.020708475 0.029618654 … 0.07359063 0.06315191; 0.06003338 -0.049503706 … 0.108574286 0.081071444; … ; 0.06143586 0.042486046 … 0.004176331 -0.015788842; -0.034046814 -0.13001536 … 0.03145192 -0.11582919], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.24610335 0.14536488 … -0.16625589 -0.07699746; -0.23652452 0.20016545 … -0.12942588 -0.234954; … ; -0.12856537 0.18322462 … 0.03357166 -0.1269629; 0.16777694 0.18240237 … -0.123271465 0.16545099], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.15734862 -0.27630538 … 0.30196702 0.33636913], Float32[0.0]])
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 # opt = Flux.Optimise.ADAM(10^-4)
@@ -1160,25 +1462,34 @@ opt = Flux.Optimise.ADAM()
 : ADAM(0.001, (0.9, 0.999), IdDict{Any, Any}())
 
 *** Load
-#+begin_src jupyter-julia :session j1 :async yes :pandoc t
-BSON.@load "/Users/evar/Base/archives/nlp_data/processBooks/models/21-11-06 00:39/150000_accu=0.82" ps # opt i_last
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+# BSON.@load "$(dir_base)/processBooks/models/21-11-06 00:39/150000_accu=0.82" ps i_last # opt
+
+BSON.@load "$(dir_base)/processBooks/models/21-11-10 18:58/120000_accu=0.819" ps i_last # opt
 
 Flux.loadparams!(model1, ps)
+model1 |> gpu
+ps = Flux.params(model1)
 
 validate()
 #+end_src
 
 #+RESULTS:
-: 0.8581349206349207
+: 0.8185606060606061
 
 *** Epoch
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-_, _, i_last = @time processBooks(; n=10^6, losses, accu_v, is, i_t_start=i_last)
+for i in 1:1
+    _, _, i_last, interrupted = @time processBooks(; n=10^6, losses, accu_v, is, i_t_start=i_last)
+    if interrupted
+        break
+    end
+end
 nothing
 #+end_src
 
 #+RESULTS:
-: a04e13d2-37ce-4f1e-898a-76a13a868d9e
+: 43cdf771-e9ed-4c08-9597-0637f7935829
 
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1190,7 +1501,30 @@ lineplot(losses)
 #+end_src
 
 #+RESULTS:
-: 34c9036c-a032-4550-a4fd-a732a7357a82
+:RESULTS:
+: minimum(losses) =>	0.2101973593235016
+: length(accu_v) =>	1011200
+: mean(accu_v) =>	0.7409533227848101
+: mean(accu_v[end - 200:end]) =>	0.7562189054726368
+:       [90m┌────────────────────────────────────────┐[39m
+:    [90m60[39m [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡆[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m│[39m[38;5;2m⡇[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:     [90m0[39m [90m│[39m[38;5;2m⣧[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[38;5;2m⣀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:       [90m└────────────────────────────────────────┘[39m
+:       ⠀[90m0[39m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[90m20000[39m⠀
+:END:
 
 ** Validation
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1198,7 +1532,7 @@ valid_losses, valid_accu_v, _ = processBooks(:valid_samples; valid_mode=true, n=
 #+end_src
 
 #+RESULTS:
-: d491f953-5936-420d-8f72-602bc6a6cac3
+| (0.3621591031551361 0.5376628041267395 0.44329220056533813) | Bool | (0 1 1 1 1 0 1 1 1 1 … 1 1 1 1 1 1 0 1 1 1) | 3 |
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 @labeled mean(valid_losses)
@@ -1209,47 +1543,37 @@ lineplot(valid_losses)
 #+end_src
 
 #+RESULTS:
-: 402b15bc-9920-4c6f-ae05-778950a1ef3b
-
-
-#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-book = elizium
-target = book[:name]
-target_onehot = Flux.onehot(target, book_names)
-@labeled target
-@labeled target_onehot
-
-
-@labeled (loss_title(predict_title_raw(book[:train_samples_split][101]), target_onehot))
-println(loss_title(predict_title_raw(book[:valid_samples_split][1]), [0,1]))
-println(loss_title(predict_title_raw(book[:valid_samples_split][1]), Bool[0,1]))
-println(loss_title(predict_title_raw(book[:valid_samples_split][1]), Bool[1,0]))
-
-# for i in 1:100:10^4
-#     hsep()
-#     println(loss_title(predict_title_raw(book[:bytes][i:(i+499)]), [0,1]))
-#     println(loss_title(predict_title_raw(book[:bytes][i:(i+499)]), [1,0]))
-# end
-#+end_src
-
-#+RESULTS:
-: 752e56d2-acd8-49dc-bb4a-7e9d8b9bad0e
-
-
-#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
-book = elizium
-predict_title(book[:valid_samples_split][100])
-#+end_src
-
-#+RESULTS:
-: 0f7e505d-57ae-4c55-b50c-b32dad15239f
+:RESULTS:
+: mean(valid_losses) =>	0.4477047026157379
+: minimum(valid_losses) =>	0.3621591031551361
+: maximum(valid_losses) =>	0.5376628041267395
+: mean(valid_accu_v) =>	0.8020833333333334
+:        [90m┌────────────────────────────────────────┐[39m
+:    [90m0.6[39m [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⣀[39m[38;5;2m⠔[39m[38;5;2m⠉[39m[38;5;2m⠒[39m[38;5;2m⠤[39m[38;5;2m⣀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡠[39m[38;5;2m⠊[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⠉[39m[38;5;2m⠒[39m[38;5;2m⠤[39m[38;5;2m⣀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢀[39m[38;5;2m⠤[39m[38;5;2m⠊[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⠉[39m[38;5;2m⠑[39m[38;5;2m⠢[39m[38;5;2m⢄[39m[38;5;2m⡀[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢀[39m[38;5;2m⠔[39m[38;5;2m⠁[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⠈[39m[38;5;2m⠑[39m[38;5;2m⠢[39m[38;5;2m⢄[39m[38;5;2m⡀[39m[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡠[39m[38;5;2m⠔[39m[38;5;2m⠁[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⠈[39m[38;5;2m⠉[39m[38;5;2m⠒[39m[38;5;2m⢤[39m[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⡠[39m[38;5;2m⠊[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[38;5;2m⢀[39m[38;5;2m⠔[39m[38;5;2m⠊[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[38;5;2m⢀[39m[38;5;2m⠔[39m[38;5;2m⠁[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[38;5;2m⡠[39m[38;5;2m⠊[39m[38;5;2m⠁[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:    [90m0.3[39m [90m│[39m[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[0m⠀[90m│[39m
+:        [90m└────────────────────────────────────────┘[39m
+:        ⠀[90m1[39m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[90m3[39m⠀
+:END:
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 validate()
 #+end_src
 
 #+RESULTS:
-: 21913a97-6042-4c6c-9582-2def45dab8ce
+: 0.4984848484848485
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 @labeled book_names
@@ -1257,9 +1581,14 @@ getindex.(books_v,:name)
 #+end_src
 
 #+RESULTS:
-: e9a809fd-6308-43dc-9494-8b898e05a5d7
+:RESULTS:
+: book_names =>	[:elizium, :luminary]
+: 2-element Vector{Symbol}:
+:  :elizium
+:  :luminary
+:END:
 
-#+begin_src jupyter-julia :session j1 :async yes :pandoc t
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 @labeled predict_title("Sturges closed his eyes and let out a deep sigh before responding.")
 
 @labeled predict_title("""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.""")
@@ -1283,11 +1612,82 @@ nothing
 #+end_src
 
 #+RESULTS:
-: 9ed55f85-9fbd-4d89-b77c-ffa684925f23
+:RESULTS:
+# [goto error]
+: TaskFailedException
+:
+:     nested task error: TaskFailedException
+:     Stacktrace:
+:      [1] wait
+:        @ ./task.jl:322 [inlined]
+:      [2] threading_run(func::Function)
+:        @ Base.Threads ./threadingconstructs.jl:34
+:      [3] macro expansion
+:        @ ./threadingconstructs.jl:93 [inlined]
+:      [4] conv_im2col!(y::SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, x::SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, w::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}; col::Array{Float32, 3}, alpha::Float32, beta::Float32)
+:        @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:49
+:      [5] conv_im2col!
+:        @ ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:30 [inlined]
+:      [6] (::NNlib.var"#191#195"{Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}})()
+:        @ NNlib ./threadingconstructs.jl:169
+:
+:         nested task error: MethodError: no method matching gemm!(::Val{false}, ::Val{false}, ::Int64, ::Int64, ::Int64, ::Float32, ::Ptr{Float32}, ::CuPtr{Float32}, ::Float32, ::Ptr{Float32})
+:         Closest candidates are:
+:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::Float32, ::Ptr{Float32}, ::Ptr{Float32}, ::Float32, ::Ptr{Float32}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
+:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::Float64, ::Ptr{Float64}, ::Ptr{Float64}, ::Float64, ::Ptr{Float64}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
+:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::ComplexF64, ::Ptr{ComplexF64}, ::Ptr{ComplexF64}, ::ComplexF64, ::Ptr{ComplexF64}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
+:           ...
+:         Stacktrace:
+:          [1] macro expansion
+:            @ ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:58 [inlined]
+:          [2] (::NNlib.var"#776#threadsfor_fun#425"{Array{Float32, 3}, Float32, Float32, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, Int64, Int64, Int64, UnitRange{Int64}})(onethread::Bool)
+:            @ NNlib ./threadingconstructs.jl:81
+:          [3] (::NNlib.var"#776#threadsfor_fun#425"{Array{Float32, 3}, Float32, Float32, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, Int64, Int64, Int64, UnitRange{Int64}})()
+:            @ NNlib ./threadingconstructs.jl:48
+:
+: Stacktrace:
+:   [1] sync_end(c::Channel{Any})
+:     @ Base ./task.jl:369
+:   [2] macro expansion
+:     @ ./task.jl:388 [inlined]
+:   [3] conv!(out::Array{Float32, 5}, in1::Array{Float32, 5}, in2::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}; kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:201
+:   [4] conv!(out::Array{Float32, 5}, in1::Array{Float32, 5}, in2::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false})
+:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:192
+:   [5] conv!(y::Array{Float32, 3}, x::Array{Float32, 3}, w::CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{1, (4,), 1, 32, 1, (1,), (0, 0), (1,), false}; kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:151
+:   [6] conv!
+:     @ ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:151 [inlined]
+:   [7] #conv#125
+:     @ ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:91 [inlined]
+:   [8] conv(x::Array{Float32, 3}, w::CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{1, (4,), 1, 32, 1, (1,), (0, 0), (1,), false})
+:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:89
+:   [9] (::Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}})(x::Array{Float32, 3})
+:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/conv.jl:166
+:  [10] applychain(fs::Tuple{Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, var"#112#114", Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(identity), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}}, x::Array{Float32, 3}) (repeats 2 times)
+:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/basic.jl:47
+:  [11] (::Chain{Tuple{var"#111#113", Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, var"#112#114", Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(identity), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}}})(x::Matrix{Float32})
+:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/basic.jl:49
+:  [12] predict_title_raw(text_part::Matrix{Float32})
+:     @ Main ./In[93]:66
+:  [13] predict_title(batch::Matrix{Float32})
+:     @ Main ./In[93]:124
+:  [14] predict_title(text_bytes::Vector{Float32})
+:     @ Main ./In[93]:121
+:  [15] predict_title(text::String)
+:     @ Main ./In[93]:117
+:  [16] top-level scope
+:     @ ~/code/julia/NightCommon/src/debugging.jl:6
+:  [17] eval
+:     @ ./boot.jl:360 [inlined]
+:  [18] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
+:     @ Base ./loading.jl:1116
+:END:
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 bella(:mbp)
 #+end_src
 
 #+RESULTS:
-: 9657aaa9-7ec5-4ddb-af13-326e1c82a7ef
+: /usr/bin/env: invalid option -- 'S'
+: Try '/usr/bin/env --help' for more information.
