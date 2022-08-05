@@ -1,11 +1,16 @@
-#+TITLE: ML/a
+#+TITLE: fanfic_classifier
 
 * @todo
 ** Batch normalization?
 
-** Dropout
-
 ** Try recurrent cells
+
+** tokenization
+*** naive Bayes
+
+** DONE Dropout
+
+** DONE Shuffle the training data
 
 ** DONE Make the random split between the training and validation data deterministic based on a seed
 
@@ -66,6 +71,10 @@ c ls -clt **/*(.) | perl -lne '/accu=(.*)/ && print $1' | sort
 rsp-safe -e "ssh -p ${host_port:-22}" ${host}: ./
 #+end_example
 
+**** To local
+#+begin_example zsh
+rsp-safe 'zii@51.178.215.202:base/saved_models/elizium_vs_luminary_m1/all/models/21-11-10 19:09/230000_accu=0.899' .
+#+end_example
 
 * GPU
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -316,6 +325,20 @@ CUDA.allowscalar(false)
 #+end_src
 
 #+RESULTS:
+:RESULTS:
+# [goto error]
+: ArgumentError: Package CUDA not found in current path:
+: - Run `import Pkg; Pkg.add("CUDA")` to install the CUDA package.
+:
+:
+: Stacktrace:
+:  [1] require(into::Module, mod::Symbol)
+:    @ Base ./loading.jl:871
+:  [2] eval
+:    @ ./boot.jl:360 [inlined]
+:  [3] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
+:    @ Base ./loading.jl:1094
+:END:
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 logdir = "$(homedir())/logs/"
@@ -1037,27 +1060,27 @@ elizium = books_load("$(dir_base)/Voice of the Nephilim/Elizium for the Sleeples
 #+RESULTS:
 :RESULTS:
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :path                => "/home/walle/base/archives/nlp_data/Voice of the Neph…
+:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :path                => "/Users/evar/base/archives/nlp_data/Voice of the Neph…
 :   :name                => :elizium
 :   :text                => "Elizium for the Sleepless Souls\n\nBy: Voice of the …
-:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :bytes               => Float32[69.0, 108.0, 105.0, 122.0, 105.0, 117.0, 109.…
-:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…Loaded book elizium
 : length(book[:part_samples]) =>	150
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :path                => "/home/walle/base/archives/nlp_data/Voice of the Neph…
+:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :path                => "/Users/evar/base/archives/nlp_data/Voice of the Neph…
 :   :name                => :elizium
 :   :text                => "Elizium for the Sleepless Souls\n\nBy: Voice of the …
-:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :bytes               => Float32[69.0, 108.0, 105.0, 122.0, 105.0, 117.0, 109.…
-:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :END:
 
@@ -1071,27 +1094,27 @@ luminary = books_load("$(dir_base)/YakAge/Black Luminary.txt"; name=:luminary)
 :RESULTS:
 : ----------------------------------------
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :path                => "/home/walle/base/archives/nlp_data/YakAge/Black Lumi…
+:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :path                => "/Users/evar/base/archives/nlp_data/YakAge/Black Lumi…
 :   :name                => :luminary
 :   :text                => "Black Luminary\n\nBy: YakAge\n\nThe war against the …
-:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :bytes               => Float32[66.0, 108.0, 97.0, 99.0, 107.0, 32.0, 76.0, 1…
-:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…Loaded book luminary
-: length(book[:part_samples]) =>	550
+: length(book[:part_samples]) =>	650
 : Dict{Symbol, Any} with 10 entries:
-:   :part_samples        => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :valid_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :path                => "/home/walle/base/archives/nlp_data/YakAge/Black Lumi…
+:   :part_samples        => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :valid_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :path                => "/Users/evar/base/archives/nlp_data/YakAge/Black Lumi…
 :   :name                => :luminary
 :   :text                => "Black Luminary\n\nBy: YakAge\n\nThe war against the …
-:   :valid_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :valid_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :bytes               => Float32[66.0, 108.0, 97.0, 99.0, 107.0, 32.0, 76.0, 1…
-:   :train_samples       => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
-:   :train_samples_split => SubArray{Float32, 1, CUDA.CuArray{Float32, 1, CUDA.Me…
+:   :train_samples       => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
+:   :train_samples_split => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :   :parts               => SubArray{Float32, 1, Vector{Float32}, Tuple{UnitRange…
 :END:
 
@@ -1439,19 +1462,19 @@ ps_init()
 #+end_src
 
 #+RESULTS:
-: Params([Float32[0.11203562; -0.13536558; 0.15956129; -0.1705385]
+: Params([Float32[0.055319645; -0.085456744; 0.19957349; 0.08606427]
 :
-: Float32[-0.04817758; -0.11286157; -0.1278674; -0.18705228]
+: Float32[0.10556889; -0.041268174; -0.14451694; -0.15412125]
 :
-: Float32[0.05709497; -0.21275555; 0.13284314; 0.16518915]
+: Float32[-0.16258563; 0.11842584; 0.20073889; 0.118710846]
 :
 : ...
 :
-: Float32[-0.13245809; 0.14284119; -0.06493855; 0.04708807]
+: Float32[0.18832041; -0.10462217; -0.1294518; -0.0067606773]
 :
-: Float32[0.10835459; 0.14694823; 0.011412528; -0.031129979]
+: Float32[-0.18592195; 0.08853288; -0.21216692; 0.019245688]
 :
-: Float32[0.10946911; -0.19835165; -0.1334255; -0.15266098], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.0003228504 -0.013420972 … 0.0023054443 0.0139919575; 0.0064417776 0.006645265 … -0.0034681337 -0.019084413; … ; -0.0010242084 0.013339099 … -0.009286045 0.006746935; -0.010512616 -0.0042036646 … 0.013419501 0.017194489], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.020708475 0.029618654 … 0.07359063 0.06315191; 0.06003338 -0.049503706 … 0.108574286 0.081071444; … ; 0.06143586 0.042486046 … 0.004176331 -0.015788842; -0.034046814 -0.13001536 … 0.03145192 -0.11582919], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.24610335 0.14536488 … -0.16625589 -0.07699746; -0.23652452 0.20016545 … -0.12942588 -0.234954; … ; -0.12856537 0.18322462 … 0.03357166 -0.1269629; 0.16777694 0.18240237 … -0.123271465 0.16545099], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.15734862 -0.27630538 … 0.30196702 0.33636913], Float32[0.0]])
+: Float32[-0.13922325; -0.026169788; -0.024823325; -0.076162495], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.007998933 0.008388935 … 0.002452117 -0.007796853; 0.010862431 0.015860489 … 0.017589653 -0.011679318; … ; -0.006528453 0.0041661477 … 5.0855728f-5 -0.005960212; -0.013393072 0.009681716 … 0.010192597 0.009112317], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[0.1741361 0.09063144 … 0.15173556 -0.14428733; -0.11622107 0.091664165 … -0.08898337 0.045376055; … ; -0.15532534 0.15237123 … 0.01752234 -0.056859806; -0.13324068 0.14229198 … -0.07071508 0.123857066], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.0887956 0.17488807 … 0.05877477 0.011693835; -0.20825922 -0.13366467 … 0.009864926 0.038101554; … ; 0.16201395 0.1249339 … -0.0790984 -0.014540076; 0.15982467 -0.1264543 … -0.12867141 -0.1762023], Float32[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  …  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], Float32[-0.4137816 0.09582225 … -0.13326377 -0.108566195], Float32[0.0]])
 
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 # opt = Flux.Optimise.ADAM(10^-4)
@@ -1465,7 +1488,9 @@ opt = Flux.Optimise.ADAM()
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 # BSON.@load "$(dir_base)/processBooks/models/21-11-06 00:39/150000_accu=0.82" ps i_last # opt
 
-BSON.@load "$(dir_base)/processBooks/models/21-11-10 18:58/120000_accu=0.819" ps i_last # opt
+BSON.@load "$(dir_base)/processBooks/models/good/230000_accu=0.899" ps i_last # opt
+
+# BSON.@load "$(dir_base)/processBooks/models/21-11-10 18:58/120000_accu=0.819" ps i_last # opt
 
 Flux.loadparams!(model1, ps)
 model1 |> gpu
@@ -1475,7 +1500,7 @@ validate()
 #+end_src
 
 #+RESULTS:
-: 0.8185606060606061
+: 0.9067307692307692
 
 *** Epoch
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
@@ -1588,10 +1613,23 @@ getindex.(books_v,:name)
 :  :luminary
 :END:
 
+*** Manual testing
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+@labeled predict_title("Daphne")
+
+@labeled predict_title("Sturges")
+
+@labeled predict_title("Former")
+
+@labeled predict_title("hjsiunx")
+
 @labeled predict_title("Sturges closed his eyes and let out a deep sigh before responding.")
 
-@labeled predict_title("""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.""")
+@labeled predict_title("""Sturges gave a curt nod, before pointing his wand at the stone. Under his command, it rose into the air, made a loop and fell back to the ground.
+
+"It worked," the Auror said, as if he couldn't believe it.
+
+Harry snorted.""")
 
 @labeled predict_title(""""I'm not a Healer, I wouldn't know," the Auror evasively replied. "Besides, what does it matter now? The boat's gone, Azkaban is sinking, and we're standing around talking."
 
@@ -1612,78 +1650,346 @@ nothing
 #+end_src
 
 #+RESULTS:
-:RESULTS:
-# [goto error]
-: TaskFailedException
-:
-:     nested task error: TaskFailedException
-:     Stacktrace:
-:      [1] wait
-:        @ ./task.jl:322 [inlined]
-:      [2] threading_run(func::Function)
-:        @ Base.Threads ./threadingconstructs.jl:34
-:      [3] macro expansion
-:        @ ./threadingconstructs.jl:93 [inlined]
-:      [4] conv_im2col!(y::SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, x::SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, w::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}; col::Array{Float32, 3}, alpha::Float32, beta::Float32)
-:        @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:49
-:      [5] conv_im2col!
-:        @ ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:30 [inlined]
-:      [6] (::NNlib.var"#191#195"{Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}})()
-:        @ NNlib ./threadingconstructs.jl:169
-:
-:         nested task error: MethodError: no method matching gemm!(::Val{false}, ::Val{false}, ::Int64, ::Int64, ::Int64, ::Float32, ::Ptr{Float32}, ::CuPtr{Float32}, ::Float32, ::Ptr{Float32})
-:         Closest candidates are:
-:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::Float32, ::Ptr{Float32}, ::Ptr{Float32}, ::Float32, ::Ptr{Float32}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
-:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::Float64, ::Ptr{Float64}, ::Ptr{Float64}, ::Float64, ::Ptr{Float64}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
-:           gemm!(::Val, ::Val, ::Int64, ::Int64, ::Int64, ::ComplexF64, ::Ptr{ComplexF64}, ::Ptr{ComplexF64}, ::ComplexF64, ::Ptr{ComplexF64}) at /home/walle/.julia/packages/NNlib/JZ1dF/src/gemm.jl:32
-:           ...
-:         Stacktrace:
-:          [1] macro expansion
-:            @ ~/.julia/packages/NNlib/JZ1dF/src/impl/conv_im2col.jl:58 [inlined]
-:          [2] (::NNlib.var"#776#threadsfor_fun#425"{Array{Float32, 3}, Float32, Float32, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, Int64, Int64, Int64, UnitRange{Int64}})(onethread::Bool)
-:            @ NNlib ./threadingconstructs.jl:81
-:          [3] (::NNlib.var"#776#threadsfor_fun#425"{Array{Float32, 3}, Float32, Float32, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, SubArray{Float32, 5, Array{Float32, 5}, Tuple{Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}, UnitRange{Int64}, Base.Slice{Base.OneTo{Int64}}}, false}, CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}, Int64, Int64, Int64, UnitRange{Int64}})()
-:            @ NNlib ./threadingconstructs.jl:48
-:
-: Stacktrace:
-:   [1] sync_end(c::Channel{Any})
-:     @ Base ./task.jl:369
-:   [2] macro expansion
-:     @ ./task.jl:388 [inlined]
-:   [3] conv!(out::Array{Float32, 5}, in1::Array{Float32, 5}, in2::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false}; kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
-:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:201
-:   [4] conv!(out::Array{Float32, 5}, in1::Array{Float32, 5}, in2::CuArray{Float32, 5, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{3, (4, 1, 1), 1, 32, 1, (1, 1, 1), (0, 0, 0, 0, 0, 0), (1, 1, 1), false})
-:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:192
-:   [5] conv!(y::Array{Float32, 3}, x::Array{Float32, 3}, w::CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{1, (4,), 1, 32, 1, (1,), (0, 0), (1,), false}; kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
-:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:151
-:   [6] conv!
-:     @ ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:151 [inlined]
-:   [7] #conv#125
-:     @ ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:91 [inlined]
-:   [8] conv(x::Array{Float32, 3}, w::CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, cdims::DenseConvDims{1, (4,), 1, 32, 1, (1,), (0, 0), (1,), false})
-:     @ NNlib ~/.julia/packages/NNlib/JZ1dF/src/conv.jl:89
-:   [9] (::Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}})(x::Array{Float32, 3})
-:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/conv.jl:166
-:  [10] applychain(fs::Tuple{Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, var"#112#114", Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(identity), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}}, x::Array{Float32, 3}) (repeats 2 times)
-:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/basic.jl:47
-:  [11] (::Chain{Tuple{var"#111#113", Conv{1, 2, typeof(relu), CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, var"#112#114", Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(relu), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}, Dense{typeof(identity), CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}}}})(x::Matrix{Float32})
-:     @ Flux ~/.julia/packages/Flux/BPPNj/src/layers/basic.jl:49
-:  [12] predict_title_raw(text_part::Matrix{Float32})
-:     @ Main ./In[93]:66
-:  [13] predict_title(batch::Matrix{Float32})
-:     @ Main ./In[93]:124
-:  [14] predict_title(text_bytes::Vector{Float32})
-:     @ Main ./In[93]:121
-:  [15] predict_title(text::String)
-:     @ Main ./In[93]:117
-:  [16] top-level scope
-:     @ ~/code/julia/NightCommon/src/debugging.jl:6
-:  [17] eval
-:     @ ./boot.jl:360 [inlined]
-:  [18] include_string(mapexpr::typeof(REPL.softscope), mod::Module, code::String, filename::String)
-:     @ Base ./loading.jl:1116
-:END:
+: predict_title("Daphne") =>	([:luminary], Float32[0.8800906])
+: predict_title("Sturges") =>	([:luminary], Float32[0.91894454])
+: predict_title("Former") =>	([:luminary], Float32[0.87178886])
+: predict_title("hjsiunx") =>	([:luminary], Float32[0.91926265])
+: predict_title("Sturges closed his eyes and let out a deep sigh before responding.") =>	([:luminary], Float32[0.6961006])
+: predict_title("Sturges gave a curt nod, before pointing his wand at the stone. Under his command, it rose into the air, made a loop and fell back to the ground.\n\n\"It worked,\" the Auror said, as if he couldn't believe it.\n\nHarry snorted.") =>	([:elizium], Float32[0.9949986])
+: predict_title("Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.") =>	([:luminary], Float32[0.8097029])
+: predict_title("\"Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.\"\n\nThe Auror opened his eyes, keeping his gaze level as he continued.\n\n\"For most of them, the Dementors do the job. But day after day, when you see that Bolshevik piece of shit sitting in his cell, like he's on a fucking vacation… someone has to balance the scales, Potter.\"\n") =>	([:elizium], Float32[0.7296372])
+: predict_title("\"I'm not a Healer, I wouldn't know,\" the Auror evasively replied. \"Besides, what does it matter now? The boat's gone, Azkaban is sinking, and we're standing around talking.\"\n\n\"It's important because there might be someone else loose on this island! If they found Personal Effects, then they're armed too.\"\n\nSturges froze for a moment, becoming a statue, before shaking his head.\n\n\"Shite, you've got a point - I can't say you're wrong. Bollocks, it's possible. I did a sweep around the Abyss, looking for others, but that doesn't mean I found them all.\" ") =>	([:elizium], Float32[0.9999281])
+: predict_title("As a way to light one's path, there was no finer spell than the Thief's Guide. It was a conjured light invisible to others, but it came with a price. The spell took almost thirty seconds to form, and required the same amount of time to wind down, before any other magic would channel through the wand.\n\nHe moved to within a foot of the high cliff face. Dolohov had the high ground, providing an eagle eye view of the island and Harry hoped to hide by sticking close to the rocky terrain. He flew along the shore, traveling in a counter-clockwise trajectory around the island, towards the north side.\n\nFrom behind him a bright light flashed, bathing everything in harsh white light. Harry started to bring his wand up, before the jagged roar of a thunderclap echoed through the air, so close it rattled his teeth within their sockets, filling his skull with ringing pain. Agony ripped through his head as he rose upward, until the overhang atop the walls of the Abyss stretched overhead, providing temporary reprieve from the storm.\n") =>	([:elizium], Float32[0.5888242])
 
+**** _
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+predict_title("""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony.""")
+#+end_src
+
+#+RESULTS:
+| (:luminary) | Float32 | (0.8097029) |
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+predict_title(""""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony."
+
+The Auror opened his eyes, keeping his gaze level as he continued.
+
+"For most of them, the Dementors do the job. But day after day, when you see that Bolshevik piece of shit sitting in his cell, like he's on a fucking vacation… someone has to balance the scales, Potter."
+""")
+#+end_src
+
+#+RESULTS:
+| (:elizium) | Float32 | (0.7296372) |
+
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+predict_title(""""Daphnes aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony."
+
+The Auror opened his eyes, keeping his gaze level as he continued.
+
+"For most of them, the Dementors do the job. But day after day, when you see that Bolshevik piece of shit sitting in his cell, like he's on a fucking vacation… someone has to balance the scales, Potter."
+""")
+#+end_src
+
+#+RESULTS:
+| (:luminary) | Float32 | (0.7834104) |
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+predict_title(""""Death Eaters aren't worth the regard you'd show Daphne. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony."
+
+The Auror opened his eyes, keeping his gaze level as he continued.
+
+"For most of them, the Dementors do the job. But day after day, when you see that Bolshevik piece of shit sitting in his cell, like he's on a fucking vacation… someone has to balance the scales, Potter."
+""")
+#+end_src
+
+#+RESULTS:
+| (:luminary) | Float32 | (0.6188742) |
+
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+predict_title(""""Death Eaters aren't worth the regard you'd show a cockroach. The things they've done… they're not even human anymore. They all deserve to suffer, to live every moment in fear, in agony."
+
+Daphne opened his eyes, keeping his gaze level as he continued.
+
+"For most of them, the Dementors do the job. But day after day, when you see that Bolshevik piece of shit sitting in his cell, like he's on a fucking vacation… someone has to balance the scales, Potter."
+""")
+#+end_src
+
+#+RESULTS:
+| (:luminary) | Float32 | (0.9481187) |
+
+#+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
+for s in ("Sturges ", "Sturges", "\tSturges\t", "\nSturges\n", "Daphne ", "Daphne", "Harry ", "Harry Potter ", "former death eater ", "former Death Eater ", "former Death Eater")
+    for i in 1:3:1000
+        sr = repeat(s, i)
+        sr_len = length(codeunits(sr))
+        println("\"$(s)\"|$(i) ($(sr_len)): $(predict_title(sr))")
+
+        if sr_len >= 500
+            break
+        end
+    end
+end
+#+end_src
+
+#+RESULTS:
+: "Sturges "|1 (8): ([:luminary], Float32[0.9084659])
+: "Sturges "|4 (32): ([:luminary], Float32[0.78637934])
+: "Sturges "|7 (56): ([:luminary], Float32[0.7511015])
+: "Sturges "|10 (80): ([:luminary], Float32[0.7167213])
+: "Sturges "|13 (104): ([:luminary], Float32[0.7197282])
+: "Sturges "|16 (128): ([:luminary], Float32[0.5586547])
+: "Sturges "|19 (152): ([:luminary], Float32[0.69433963])
+: "Sturges "|22 (176): ([:elizium], Float32[0.5284413])
+: "Sturges "|25 (200): ([:elizium], Float32[0.7057922])
+: "Sturges "|28 (224): ([:elizium], Float32[0.6231144])
+: "Sturges "|31 (248): ([:elizium], Float32[0.64291555])
+: "Sturges "|34 (272): ([:elizium], Float32[0.93219006])
+: "Sturges "|37 (296): ([:elizium], Float32[0.94266087])
+: "Sturges "|40 (320): ([:elizium], Float32[0.9496109])
+: "Sturges "|43 (344): ([:elizium], Float32[0.9398242])
+: "Sturges "|46 (368): ([:elizium], Float32[0.95951897])
+: "Sturges "|49 (392): ([:elizium], Float32[0.97920173])
+: "Sturges "|52 (416): ([:elizium], Float32[0.9904779])
+: "Sturges "|55 (440): ([:elizium], Float32[0.9872892])
+: "Sturges "|58 (464): ([:elizium], Float32[0.9981779])
+: "Sturges "|61 (488): ([:elizium], Float32[0.9985221])
+: "Sturges "|64 (512): ([:elizium], Float32[0.99998176])
+: "Sturges"|1 (7): ([:luminary], Float32[0.91894454])
+: "Sturges"|4 (28): ([:luminary], Float32[0.69747823])
+: "Sturges"|7 (49): ([:luminary], Float32[0.7664588])
+: "Sturges"|10 (70): ([:luminary], Float32[0.7631384])
+: "Sturges"|13 (91): ([:luminary], Float32[0.89710164])
+: "Sturges"|16 (112): ([:luminary], Float32[0.816814])
+: "Sturges"|19 (133): ([:luminary], Float32[0.7467115])
+: "Sturges"|22 (154): ([:luminary], Float32[0.81807005])
+: "Sturges"|25 (175): ([:luminary], Float32[0.817155])
+: "Sturges"|28 (196): ([:luminary], Float32[0.87153524])
+: "Sturges"|31 (217): ([:luminary], Float32[0.837211])
+: "Sturges"|34 (238): ([:luminary], Float32[0.82632333])
+: "Sturges"|37 (259): ([:luminary], Float32[0.7658739])
+: "Sturges"|40 (280): ([:luminary], Float32[0.78688633])
+: "Sturges"|43 (301): ([:luminary], Float32[0.79343736])
+: "Sturges"|46 (322): ([:luminary], Float32[0.8122535])
+: "Sturges"|49 (343): ([:luminary], Float32[0.77966666])
+: "Sturges"|52 (364): ([:luminary], Float32[0.7658739])
+: "Sturges"|55 (385): ([:luminary], Float32[0.7658739])
+: "Sturges"|58 (406): ([:luminary], Float32[0.7280034])
+: "Sturges"|61 (427): ([:luminary], Float32[0.71619225])
+: "Sturges"|64 (448): ([:luminary], Float32[0.7658739])
+: "Sturges"|67 (469): ([:luminary], Float32[0.7926266])
+: "Sturges"|70 (490): ([:luminary], Float32[0.9476907])
+: "Sturges"|73 (511): ([:luminary], Float32[0.82291657])
+: "	Sturges	"|1 (9): ([:luminary], Float32[0.98466915])
+: "	Sturges	"|4 (36): ([:luminary], Float32[0.99738425])
+: "	Sturges	"|7 (63): ([:luminary], Float32[0.9153329])
+: "	Sturges	"|10 (90): ([:elizium], Float32[0.9438124])
+: "	Sturges	"|13 (117): ([:elizium], Float32[0.9999902])
+: "	Sturges	"|16 (144): ([:elizium], Float32[1.0])
+: "	Sturges	"|19 (171): ([:elizium], Float32[1.0])
+: "	Sturges	"|22 (198): ([:elizium], Float32[1.0])
+: "	Sturges	"|25 (225): ([:elizium], Float32[1.0])
+: "	Sturges	"|28 (252): ([:elizium], Float32[1.0])
+: "	Sturges	"|31 (279): ([:elizium], Float32[1.0])
+: "	Sturges	"|34 (306): ([:elizium], Float32[1.0])
+: "	Sturges	"|37 (333): ([:elizium], Float32[1.0])
+: "	Sturges	"|40 (360): ([:elizium], Float32[1.0])
+: "	Sturges	"|43 (387): ([:elizium], Float32[1.0])
+: "	Sturges	"|46 (414): ([:elizium], Float32[1.0])
+: "	Sturges	"|49 (441): ([:elizium], Float32[1.0])
+: "	Sturges	"|52 (468): ([:elizium], Float32[1.0])
+: "	Sturges	"|55 (495): ([:elizium], Float32[1.0])
+: "	Sturges	"|58 (522): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|1 (9): ([:luminary], Float32[0.9837257])
+: "
+: Sturges
+: "|4 (36): ([:luminary], Float32[0.99785995])
+: "
+: Sturges
+: "|7 (63): ([:luminary], Float32[0.9215182])
+: "
+: Sturges
+: "|10 (90): ([:elizium], Float32[0.9145907])
+: "
+: Sturges
+: "|13 (117): ([:elizium], Float32[0.9999672])
+: "
+: Sturges
+: "|16 (144): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|19 (171): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|22 (198): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|25 (225): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|28 (252): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|31 (279): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|34 (306): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|37 (333): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|40 (360): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|43 (387): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|46 (414): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|49 (441): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|52 (468): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|55 (495): ([:elizium], Float32[1.0])
+: "
+: Sturges
+: "|58 (522): ([:elizium], Float32[1.0])
+: "Daphne "|1 (7): ([:luminary], Float32[0.8615514])
+: "Daphne "|4 (28): ([:luminary], Float32[0.57944894])
+: "Daphne "|7 (49): ([:elizium], Float32[0.5802219])
+: "Daphne "|10 (70): ([:elizium], Float32[0.7709762])
+: "Daphne "|13 (91): ([:elizium], Float32[0.856806])
+: "Daphne "|16 (112): ([:elizium], Float32[0.8962437])
+: "Daphne "|19 (133): ([:elizium], Float32[0.9360701])
+: "Daphne "|22 (154): ([:elizium], Float32[0.9451292])
+: "Daphne "|25 (175): ([:elizium], Float32[0.9580155])
+: "Daphne "|28 (196): ([:elizium], Float32[0.97587323])
+: "Daphne "|31 (217): ([:elizium], Float32[0.9858964])
+: "Daphne "|34 (238): ([:elizium], Float32[0.99068415])
+: "Daphne "|37 (259): ([:elizium], Float32[0.9954436])
+: "Daphne "|40 (280): ([:elizium], Float32[0.99323386])
+: "Daphne "|43 (301): ([:elizium], Float32[0.99595743])
+: "Daphne "|46 (322): ([:elizium], Float32[0.997063])
+: "Daphne "|49 (343): ([:elizium], Float32[0.996554])
+: "Daphne "|52 (364): ([:elizium], Float32[0.9976845])
+: "Daphne "|55 (385): ([:elizium], Float32[0.9985098])
+: "Daphne "|58 (406): ([:elizium], Float32[0.9980161])
+: "Daphne "|61 (427): ([:elizium], Float32[0.9989992])
+: "Daphne "|64 (448): ([:elizium], Float32[0.9989015])
+: "Daphne "|67 (469): ([:elizium], Float32[0.99903274])
+: "Daphne "|70 (490): ([:elizium], Float32[0.9989741])
+: "Daphne "|73 (511): ([:elizium], Float32[0.99969304])
+: "Daphne"|1 (6): ([:luminary], Float32[0.8800906])
+: "Daphne"|4 (24): ([:luminary], Float32[0.80955136])
+: "Daphne"|7 (42): ([:luminary], Float32[0.87359834])
+: "Daphne"|10 (60): ([:luminary], Float32[0.7579535])
+: "Daphne"|13 (78): ([:luminary], Float32[0.71352124])
+: "Daphne"|16 (96): ([:luminary], Float32[0.66352475])
+: "Daphne"|19 (114): ([:luminary], Float32[0.7255676])
+: "Daphne"|22 (132): ([:luminary], Float32[0.79945016])
+: "Daphne"|25 (150): ([:luminary], Float32[0.7297182])
+: "Daphne"|28 (168): ([:luminary], Float32[0.8448794])
+: "Daphne"|31 (186): ([:luminary], Float32[0.8565506])
+: "Daphne"|34 (204): ([:luminary], Float32[0.8138204])
+: "Daphne"|37 (222): ([:luminary], Float32[0.8336204])
+: "Daphne"|40 (240): ([:luminary], Float32[0.82503927])
+: "Daphne"|43 (258): ([:luminary], Float32[0.8094206])
+: "Daphne"|46 (276): ([:luminary], Float32[0.90847826])
+: "Daphne"|49 (294): ([:luminary], Float32[0.77766144])
+: "Daphne"|52 (312): ([:luminary], Float32[0.8013817])
+: "Daphne"|55 (330): ([:luminary], Float32[0.82758427])
+: "Daphne"|58 (348): ([:luminary], Float32[0.82149667])
+: "Daphne"|61 (366): ([:luminary], Float32[0.67405784])
+: "Daphne"|64 (384): ([:luminary], Float32[0.7831406])
+: "Daphne"|67 (402): ([:luminary], Float32[0.7658739])
+: "Daphne"|70 (420): ([:luminary], Float32[0.7658739])
+: "Daphne"|73 (438): ([:luminary], Float32[0.7658739])
+: "Daphne"|76 (456): ([:luminary], Float32[0.80686116])
+: "Daphne"|79 (474): ([:luminary], Float32[0.7658739])
+: "Daphne"|82 (492): ([:luminary], Float32[0.99999803])
+: "Daphne"|85 (510): ([:luminary], Float32[0.82291657])
+: "Harry "|1 (6): ([:luminary], Float32[0.90520597])
+: "Harry "|4 (24): ([:luminary], Float32[0.8497299])
+: "Harry "|7 (42): ([:luminary], Float32[0.9232881])
+: "Harry "|10 (60): ([:luminary], Float32[0.899124])
+: "Harry "|13 (78): ([:luminary], Float32[0.9456601])
+: "Harry "|16 (96): ([:luminary], Float32[0.97567326])
+: "Harry "|19 (114): ([:luminary], Float32[0.9579711])
+: "Harry "|22 (132): ([:luminary], Float32[0.98196566])
+: "Harry "|25 (150): ([:luminary], Float32[0.9895813])
+: "Harry "|28 (168): ([:luminary], Float32[0.98945683])
+: "Harry "|31 (186): ([:luminary], Float32[0.99331117])
+: "Harry "|34 (204): ([:luminary], Float32[0.9968096])
+: "Harry "|37 (222): ([:luminary], Float32[0.9982335])
+: "Harry "|40 (240): ([:luminary], Float32[0.9980396])
+: "Harry "|43 (258): ([:luminary], Float32[0.99790424])
+: "Harry "|46 (276): ([:luminary], Float32[0.9982446])
+: "Harry "|49 (294): ([:luminary], Float32[0.9992256])
+: "Harry "|52 (312): ([:luminary], Float32[0.9994071])
+: "Harry "|55 (330): ([:luminary], Float32[0.9998256])
+: "Harry "|58 (348): ([:luminary], Float32[0.99977195])
+: "Harry "|61 (366): ([:luminary], Float32[0.9998938])
+: "Harry "|64 (384): ([:luminary], Float32[0.9998329])
+: "Harry "|67 (402): ([:luminary], Float32[0.99977374])
+: "Harry "|70 (420): ([:luminary], Float32[0.99994034])
+: "Harry "|73 (438): ([:luminary], Float32[0.99977124])
+: "Harry "|76 (456): ([:luminary], Float32[0.9998982])
+: "Harry "|79 (474): ([:luminary], Float32[0.99990094])
+: "Harry "|82 (492): ([:luminary], Float32[0.9999482])
+: "Harry "|85 (510): ([:luminary], Float32[0.99983907])
+: "Harry Potter "|1 (13): ([:luminary], Float32[0.82890207])
+: "Harry Potter "|4 (52): ([:luminary], Float32[0.8515082])
+: "Harry Potter "|7 (91): ([:luminary], Float32[0.93710357])
+: "Harry Potter "|10 (130): ([:luminary], Float32[0.91286415])
+: "Harry Potter "|13 (169): ([:luminary], Float32[0.92091745])
+: "Harry Potter "|16 (208): ([:luminary], Float32[0.9332891])
+: "Harry Potter "|19 (247): ([:luminary], Float32[0.96434355])
+: "Harry Potter "|22 (286): ([:luminary], Float32[0.9825712])
+: "Harry Potter "|25 (325): ([:luminary], Float32[0.99254185])
+: "Harry Potter "|28 (364): ([:luminary], Float32[0.99375033])
+: "Harry Potter "|31 (403): ([:luminary], Float32[0.9981972])
+: "Harry Potter "|34 (442): ([:luminary], Float32[0.9988368])
+: "Harry Potter "|37 (481): ([:luminary], Float32[0.9984812])
+: "Harry Potter "|40 (520): ([:luminary], Float32[0.9716197])
+: "former death eater "|1 (19): ([:luminary], Float32[0.89179957])
+: "former death eater "|4 (76): ([:luminary], Float32[0.87866825])
+: "former death eater "|7 (133): ([:luminary], Float32[0.79445416])
+: "former death eater "|10 (190): ([:luminary], Float32[0.84965074])
+: "former death eater "|13 (247): ([:luminary], Float32[0.85968727])
+: "former death eater "|16 (304): ([:luminary], Float32[0.8823935])
+: "former death eater "|19 (361): ([:luminary], Float32[0.9766743])
+: "former death eater "|22 (418): ([:luminary], Float32[0.955864])
+: "former death eater "|25 (475): ([:luminary], Float32[0.9771394])
+: "former death eater "|28 (532): ([:luminary], Float32[0.9284054])
+: "former Death Eater "|1 (19): ([:luminary], Float32[0.89483047])
+: "former Death Eater "|4 (76): ([:luminary], Float32[0.91536283])
+: "former Death Eater "|7 (133): ([:luminary], Float32[0.59517527])
+: "former Death Eater "|10 (190): ([:luminary], Float32[0.6829245])
+: "former Death Eater "|13 (247): ([:luminary], Float32[0.6325604])
+: "former Death Eater "|16 (304): ([:luminary], Float32[0.78703505])
+: "former Death Eater "|19 (361): ([:luminary], Float32[0.8949729])
+: "former Death Eater "|22 (418): ([:luminary], Float32[0.89971715])
+: "former Death Eater "|25 (475): ([:luminary], Float32[0.9180496])
+: "former Death Eater "|28 (532): ([:elizium], Float32[0.5988412])
+: "former Death Eater"|1 (18): ([:luminary], Float32[0.86180055])
+: "former Death Eater"|4 (72): ([:luminary], Float32[0.7002988])
+: "former Death Eater"|7 (126): ([:luminary], Float32[0.59264016])
+: "former Death Eater"|10 (180): ([:luminary], Float32[0.60319144])
+: "former Death Eater"|13 (234): ([:luminary], Float32[0.6880965])
+: "former Death Eater"|16 (288): ([:luminary], Float32[0.66495836])
+: "former Death Eater"|19 (342): ([:luminary], Float32[0.7718569])
+: "former Death Eater"|22 (396): ([:luminary], Float32[0.86179024])
+: "former Death Eater"|25 (450): ([:luminary], Float32[0.708271])
+: "former Death Eater"|28 (504): ([:elizium], Float32[0.8494184])
+
+*** _
 #+begin_src jupyter-julia :session (night/org-babel-session-name-get "j1") :async yes :pandoc t
 bella(:mbp)
 #+end_src

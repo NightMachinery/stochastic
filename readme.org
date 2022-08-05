@@ -23,7 +23,7 @@ The model was tested with this [[https://github.com/batbone/stochastic/tree/9e3d
 *** Screenshots
 **** ~withMW(m3_2_1,0.2; discrete_opt=1//24, visualize=true, c=100, initialPeople=gp_H_dV, isolationProbability=0.9, smallGridMode=0, daysInSec=1, simDuration=3000, tracking=true)~
 
-See full [[https://t.me/InfectiousModel/71][video]].
+See the full [[https://t.me/InfectiousModel/71][video]].
 
 [[file:readme.org_imgs/20200817_170159_YrPf7a.png]]
 
